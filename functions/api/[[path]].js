@@ -23,7 +23,7 @@ const LIMITS = {
   submit: [600, 10 * MIN],    // 제출
   move: [100, 10 * MIN]       // 교사가 제출물 번호 옮기기
 };
-const STRATEGIES = ['concept-attainment', 'frayer', 'generalization', 'see-think-wonder', 'compare-cases', 'classify', 'diamond-rank', 'used-to-think'];
+const STRATEGIES = ['concept-attainment', 'frayer', 'generalization', 'see-think-wonder', 'compare-cases', 'classify', 'diamond-rank', 'used-to-think', 'value-line', 'four-corners'];
 const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 
 export async function onRequest(context) {

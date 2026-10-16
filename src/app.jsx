@@ -9,7 +9,9 @@ import { TeacherHome } from './screens/teacher/Home.jsx';
 import { ClassPage } from './screens/teacher/ClassPage.jsx';
 import { NewAssignment } from './screens/teacher/NewAssignment.jsx';
 import { StatusPage } from './screens/teacher/Status.jsx';
-import { ArchivePage, ArchiveView } from './screens/teacher/Archive.jsx';
+import { ArchivePage, ArchiveView, ArchiveUnit } from './screens/teacher/Archive.jsx';
+import { Toolbox } from './screens/teacher/Toolbox.jsx';
+import { LiveBoard } from './screens/teacher/LiveBoard.jsx';
 import { Join } from './screens/student/Join.jsx';
 import { MyTasks } from './screens/student/MyTasks.jsx';
 import { DoTask } from './screens/student/DoTask.jsx';
@@ -39,21 +41,28 @@ export function App() {
   let m;
   let screen;
 
-  if (path === '/' || path === '') screen = <Landing teacher={teacher} student={student} />;
-  else if (path === '/privacy') screen = <Privacy />;
-  else if (path === '/t/start') screen = <Onboarding {...tprops} />;
-  else if (path.startsWith('/t') && !room) { go('/t/start'); screen = <Loading />; }
-  else if (path === '/t') screen = <TeacherHome {...tprops} />;
-  else if (path === '/t/class') screen = <ClassPage {...tprops} />;
-  else if ((m = match('/t/new/:strategy', path))) screen = <NewAssignment key={m.strategy} {...tprops} strategyId={m.strategy} />;
-  else if ((m = match('/t/a/:id', path))) screen = <StatusPage {...tprops} id={m.id} />;
-  else if (path === '/t/archive') screen = <ArchivePage {...tprops} />;
-  else if ((m = match('/t/archive/:id', path))) screen = <ArchiveView {...tprops} id={m.id} />;
-  else if ((m = match('/j/:code', path))) screen = <Join code={m.code} student={student} setStudent={setStudent} />;
-  else if (path === '/join') screen = <Join student={student} setStudent={setStudent} />;
-  else if (path === '/s') screen = student ? <MyTasks student={student} setStudent={setStudent} /> : (go('/join'), <Loading />);
-  else if ((m = match('/s/a/:id', path))) screen = student ? <DoTask student={student} setStudent={setStudent} id={m.id} /> : (go('/join'), <Loading />);
+  // 주소 뒤 ?from=tools 같은 덧붙임은 화면에 따로 넘겨요
+  const [base, qs = ''] = path.split('?');
+  const query = new URLSearchParams(qs);
+
+  if (base === '/' || base === '') screen = <Landing teacher={teacher} student={student} />;
+  else if (base === '/privacy') screen = <Privacy />;
+  else if (base === '/t/start') screen = <Onboarding {...tprops} />;
+  else if (base.startsWith('/t') && !room) { go('/t/start'); screen = <Loading />; }
+  else if (base === '/t') screen = <TeacherHome {...tprops} />;
+  else if (base === '/t/tools') screen = <Toolbox {...tprops} />;
+  else if ((m = match('/t/live/:id', base))) screen = <LiveBoard key={m.id} {...tprops} id={m.id} />;
+  else if (base === '/t/class') screen = <ClassPage {...tprops} />;
+  else if ((m = match('/t/new/:strategy', base))) screen = <NewAssignment key={m.strategy + '?' + qs} {...tprops} strategyId={m.strategy} query={query} />;
+  else if ((m = match('/t/a/:id', base))) screen = <StatusPage {...tprops} id={m.id} />;
+  else if (base === '/t/archive') screen = <ArchivePage {...tprops} />;
+  else if ((m = match('/t/archive/u/:unit', base))) screen = <ArchiveUnit {...tprops} unitId={m.unit} />;
+  else if ((m = match('/t/archive/:id', base))) screen = <ArchiveView {...tprops} id={m.id} />;
+  else if ((m = match('/j/:code', base))) screen = <Join code={m.code} student={student} setStudent={setStudent} />;
+  else if (base === '/join') screen = <Join student={student} setStudent={setStudent} />;
+  else if (base === '/s') screen = student ? <MyTasks student={student} setStudent={setStudent} /> : (go('/join'), <Loading />);
+  else if ((m = match('/s/a/:id', base))) screen = student ? <DoTask student={student} setStudent={setStudent} id={m.id} /> : (go('/join'), <Loading />);
   else screen = <Landing teacher={teacher} student={student} />;
 
-  return <>{screen}{path !== '/privacy' && <FooterLinks />}<ToastHost /></>;
+  return <>{screen}{base !== '/privacy' && !base.startsWith('/t/live/') && <FooterLinks />}<ToastHost /></>;
 }

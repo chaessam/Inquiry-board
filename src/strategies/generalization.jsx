@@ -65,6 +65,7 @@ export const generalization = {
   id: 'generalization',
   name: '일반화 문장 만들기',
   stage: 'generalize',
+  stages: ['generalize', 'transfer', 'assess'],
   summary: '개념 두 개를 골라 관계를 문장으로 쓰고, ‘어떻게? 왜?’로 한 단계 다듬어요.',
   forTeacher: '학생이 개념 단어를 골라 첫 일반화(수준 1)를 쓰고, ‘어떻게? 왜?’ 질문에 답하며 수준 2 문장으로 다듬어요. 동사 상자와 점검표가 함께 보여요.',
 

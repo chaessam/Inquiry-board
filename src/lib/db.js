@@ -1,7 +1,11 @@
 // 이 기기에만 저장하는 작은 저장소 (IndexedDB, 키-값)
 // 키 규칙
 //   teacher           { classrooms: [{ id, code, label, size, adminKey }], currentId }
-//   unit:<교실id>      단원 정보
+//   unit:<교실id>      단원 정보 (지금 단원)
+//   units:<교실id>     지금까지 쓴 단원 목록
+//   meta:<과제id>      과제를 낸 곳 (단원·탐구 단계)
+//   live:<기록id>      도구 모음 '함께 보기' 기록
+//   (자세한 모양은 src/lib/records.js)
 //   roster:<교실id>    명렬표 (번호 순 이름 배열)
 //   archive:<과제id>   '모두 받기'로 받아 둔 과제와 제출물
 //   student           { code, label, size, number, deviceId }

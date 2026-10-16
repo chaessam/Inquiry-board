@@ -7,6 +7,7 @@ import { byId } from '../../strategies/index.jsx';
 import { Tip, ErrorNote, Loading, Dialog, toast } from '../../ui/kit.jsx';
 import { TeacherBar } from './Bar.jsx';
 import { Board } from './Board.jsx';
+import { stageName } from '../../lib/records.js';
 
 export function StatusPage(props) {
   const { room, id } = props;
@@ -16,12 +17,14 @@ export function StatusPage(props) {
   const [error, setError] = useState(null);
   const [projector, setProjector] = useState(false);
   const [extend, setExtend] = useState(false);
+  const [filed, setFiled] = useState(null);
 
   const load = () => api.getAssignment(room, id).then((r) => { setData(r); setError(null); }).catch(setError);
   useEffect(() => {
     load();
     store.get('roster:' + room.id).then((r) => setRoster(r || []));
     store.get('archive:' + id).then((a) => setReceived(a?.receivedAt || null));
+    store.get('meta:' + id).then((x) => setFiled(x || null));
   }, [id, room.id]);
 
   if (error && !data) return <><TeacherBar {...props} /><main class="page"><ErrorNote error={error} /><a href="#/t">홈으로</a></main></>;
@@ -36,7 +39,10 @@ export function StatusPage(props) {
     if (!fresh) return;
     setData(fresh);
     const now = Date.now();
-    await store.set('archive:' + id, { ...fresh, classroom: { id: room.id, label: room.label, size: room.size }, roster, receivedAt: now });
+    // 다시 받을 때도 보관함에서 바꾼 정리 자리는 그대로 둬요
+    const prev = await store.get('archive:' + id);
+    const filing = prev?.filed || (await store.get('meta:' + id)) || null;
+    await store.set('archive:' + id, { ...fresh, classroom: { id: room.id, label: room.label, size: room.size }, roster, receivedAt: now, filed: filing });
     setReceived(now);
     toast(`${new Set(fresh.submissions.map((x) => x.number)).size}명의 답을 이 기기에 받아 두었어요.`);
   };
@@ -54,6 +60,7 @@ export function StatusPage(props) {
           <div class="stack" style="gap:8px">
             <nav class="small muted row" style="gap:6px;font-weight:600" aria-label="위치"><a href="#/t" style="text-decoration:none">홈</a><span aria-hidden="true">/</span><span>{s?.name}</span></nav>
             <h1 class="title-lg" style="font-size:40px">{a.title}</h1>
+            {filed && !projector && <span class="small muted">보관함 정리: {filed.unitId ? filed.unitName : '단원 밖 수업'} › {stageName(filed.stage)}</span>}
             <span class="row small muted" style="gap:8px">
               <span aria-hidden="true" style={`width:8px;height:8px;border-radius:999px;background:${closed ? '#8A91A6' : '#2BB673'}`} />
               {closed ? `마감됨 · ${fmtDateTime(a.expires_at)}에 서버에서 지워져요` : `진행 중 · 마감 ${fmtDateTime(a.deadline)} (${remaining(a.deadline)})`}
