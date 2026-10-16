@@ -45,7 +45,7 @@ export function App() {
   else if (path.startsWith('/t') && !room) { go('/t/start'); screen = <Loading />; }
   else if (path === '/t') screen = <TeacherHome {...tprops} />;
   else if (path === '/t/class') screen = <ClassPage {...tprops} />;
-  else if ((m = match('/t/new/:strategy', path))) screen = <NewAssignment {...tprops} strategyId={m.strategy} />;
+  else if ((m = match('/t/new/:strategy', path))) screen = <NewAssignment key={m.strategy} {...tprops} strategyId={m.strategy} />;
   else if ((m = match('/t/a/:id', path))) screen = <StatusPage {...tprops} id={m.id} />;
   else if (path === '/t/archive') screen = <ArchivePage {...tprops} />;
   else if ((m = match('/t/archive/:id', path))) screen = <ArchiveView {...tprops} id={m.id} />;

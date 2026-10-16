@@ -201,3 +201,12 @@ h1, h2, h3, p { margin: 0; }
   .topbar, .no-print, .tip { display: none !important; }
   .card, .zone, .frayer > .cell { background: #fff !important; border: 1px solid #000 !important; }
 }
+
+/* ---------- 다이아몬드 랭킹 칸 ---------- */
+.diamond-row { display: flex; justify-content: center; gap: 8px; }
+.slot { flex: 0 1 calc((100% - 16px) / 3); max-width: 180px; min-height: 64px; padding: 8px 10px; border-radius: 14px; border: 1.5px dashed #C5CAD8; background: transparent; color: var(--faint); font-size: 15px; font-weight: 700; line-height: 1.35; text-align: center; display: grid; place-items: center; word-break: keep-all; transition: transform .14s ease, box-shadow .14s ease, background-color .14s ease; }
+.slot.target { background: var(--blue-soft); border-color: var(--blue); color: var(--blue-deep); }
+.slot.filled { border: 1px solid var(--line); border-style: solid; background: var(--surface); color: var(--ink); box-shadow: 0 2px 0 var(--line); }
+.slot.filled.strong { border: 2px solid var(--blue); }
+.slot.filled.small { min-height: 44px; font-size: 13px; padding: 6px; box-shadow: none; }
+.slot[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); transform: translateY(-4px) rotate(-1.5deg); box-shadow: 0 12px 24px rgba(22,27,46,0.22); }
