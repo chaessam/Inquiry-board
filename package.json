@@ -1,0 +1,24 @@
+{
+  "name": "saenggakteul",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "개념기반탐구 수업을 위한 사고전략 활동지 도구 (가칭 생각틀)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "db:migrate:local": "wrangler d1 migrations apply saenggakteul --local",
+    "db:migrate:remote": "wrangler d1 migrations apply saenggakteul --remote",
+    "serve": "npm run build && wrangler pages dev dist --port 8788",
+    "deploy": "npm run build && wrangler pages deploy dist"
+  },
+  "dependencies": {
+    "preact": "^10.26.0",
+    "qrcode-generator": "^1.4.4"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.0",
+    "vite": "^6.3.0",
+    "wrangler": "^4.20.0"
+  }
+}

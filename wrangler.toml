@@ -1,0 +1,11 @@
+name = "saenggakteul"
+compatibility_date = "2025-09-01"
+pages_build_output_dir = "dist"
+
+# 배포 전에 `npx wrangler d1 create saenggakteul`로 데이터베이스를 만들고,
+# 출력된 database_id를 아래에 붙여 넣으세요. 내 컴퓨터에서 시험할 때는 그대로 둬도 됩니다.
+[[d1_databases]]
+binding = "DB"
+database_name = "saenggakteul"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

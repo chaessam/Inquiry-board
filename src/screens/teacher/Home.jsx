@@ -1,0 +1,219 @@
+import { useEffect, useState } from 'preact/hooks';
+import { store } from '../../lib/db.js';
+import { api } from '../../lib/api.js';
+import { fmtDateTime, remaining } from '../../lib/format.js';
+import { STAGES } from '../../content/guides.js';
+import { STRATEGIES, byId, StrategyArt } from '../../strategies/index.jsx';
+import { Tip, Donut, Dialog, ErrorNote } from '../../ui/kit.jsx';
+import { TeacherBar } from './Bar.jsx';
+
+const EMPTY_UNIT = { name: '', subject: '', lens: '', concepts: [], generalization: '', questions: { factual: '', conceptual: '', debatable: '' }, stage: 'connect' };
+
+export function TeacherHome(props) {
+  const { room } = props;
+  const [unit, setUnit] = useState(undefined);
+  const [editing, setEditing] = useState(false);
+  const [list, setList] = useState(null);
+  const [error, setError] = useState(null);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    setUnit(undefined); setList(null); setError(null);
+    store.get('unit:' + room.id).then((u) => setUnit(u || null));
+    api.listAssignments(room).then((r) => setList(r.assignments)).catch(setError);
+  }, [room.id]);
+
+  const saveUnit = async (u) => { await store.set('unit:' + room.id, u); setUnit(u); };
+  const stageIdx = STAGES.findIndex((s) => s.id === (unit?.stage || 'connect'));
+  const stage = STAGES[stageIdx < 0 ? 0 : stageIdx];
+  const forStage = STRATEGIES.filter((s) => s.stage === stage.id);
+  const shown = showAll || forStage.length === 0 ? STRATEGIES : forStage;
+
+  return (
+    <>
+      <TeacherBar {...props} current="home" />
+      <main class="page">
+        {unit === undefined ? null : unit === null ? (
+          <section class="card" style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;padding:32px">
+            <div class="stack" style="flex:999 1 420px;gap:10px">
+              <span class="eyebrow">첫 단계</span>
+              <h1 class="title-lg">지금 가르치는 단원을 정해요</h1>
+              <p class="muted">단원 이름과 핵심 개념을 넣어 두면, 활동지를 만들 때 개념 단어가 자동으로 채워져요. 이 정보는 이 기기에만 저장돼요.</p>
+              <div class="row" style="margin-top:6px"><button type="button" class="btn big dark" onClick={() => setEditing(true)}>단원 정하기</button></div>
+            </div>
+            <HeroArt />
+          </section>
+        ) : (
+          <section style="display:flex;flex-wrap:wrap;background:#fff;border-radius:24px;overflow:hidden;border:1px solid var(--line)">
+            <div style="flex:999 1 520px;min-width:0;padding:36px 40px;display:flex;flex-direction:column;gap:26px">
+              <div class="stack" style="gap:10px">
+                <span class="eyebrow">{unit.subject ? `${unit.subject} · ` : ''}지금 단원</span>
+                <h1 class="title-xl">{unit.name}</h1>
+                <div class="row muted" style="gap:6px 16px;font-size:14px">
+                  {unit.lens && <span>개념 렌즈 <strong style="color:var(--ink)">{unit.lens}</strong></span>}
+                  {unit.concepts.length > 0 && <span>핵심 개념 <strong style="color:var(--ink)">{unit.concepts.join(' · ')}</strong></span>}
+                </div>
+              </div>
+              {unit.generalization && (
+                <div class="stack" style="gap:8px;padding-left:18px;border-left:3px solid var(--butter)">
+                  <span class="label">일반화</span>
+                  <p style="font-size:21px;line-height:1.5;font-weight:700;letter-spacing:-0.03em">{unit.generalization}</p>
+                </div>
+              )}
+              <div class="row"><button type="button" class="btn dark" onClick={() => setEditing(true)}>단원 고치기</button></div>
+            </div>
+            <HeroArt panel />
+          </section>
+        )}
+
+        {unit && (unit.questions.factual || unit.questions.conceptual || unit.questions.debatable) && (
+          <section class="stack" style="gap:16px">
+            <h2 class="label">안내 질문</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+              {[['factual', '사실적', '#3355FF', 'border-radius:999px'], ['conceptual', '개념적', '#FF6B3D', 'border-radius:3px'], ['debatable', '논쟁적', '#E8B400', 'border-radius:0;transform:rotate(45deg)']]
+                .filter(([k]) => unit.questions[k])
+                .map(([k, name, color, shape]) => (
+                  <div key={k} class="card" style="display:flex;flex-direction:column;gap:14px">
+                    <span class="row small" style="gap:8px;font-weight:800;color:var(--ink-2)"><span aria-hidden="true" style={`width:10px;height:10px;background:${color};${shape}`} />{name}</span>
+                    <p style="font-size:17px;font-weight:700;line-height:1.5;letter-spacing:-0.03em">{unit.questions[k]}</p>
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
+
+        <section class="stack" style="gap:16px">
+          <div class="row between">
+            <h2 class="label">탐구 단계</h2>
+            <span class="small muted">단계를 누르면 그 단계에 맞는 전략이 아래에 보여요</span>
+          </div>
+          <nav class="card stage-map" style="padding:0" aria-label="탐구 단계">
+            <div class="stage-map-in">
+              <span class="stage-map-line" aria-hidden="true" />
+              {STAGES.map((s, i) => (
+                <button key={s.id} type="button" class={'stage' + (i < stageIdx ? ' done' : '')} aria-current={i === stageIdx ? 'step' : undefined}
+                  onClick={() => saveUnit({ ...(unit || EMPTY_UNIT), stage: s.id })}>
+                  <span class="dot" aria-hidden="true">{i < stageIdx ? '✓' : i + 1}</span>
+                  <span class="name">{s.name}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+          <Tip title={`${stage.name} 단계는 무엇을 하나요?`} tone="blue"><p>{stage.help}</p></Tip>
+        </section>
+
+        <section class="split">
+          <div class="main stack" style="gap:16px">
+            <div class="row between">
+              <h2 class="title-md">{showAll || forStage.length === 0 ? '모든 전략' : `${stage.name}에 쓰기 좋은 전략`}</h2>
+              {forStage.length > 0 && <button type="button" class="btn ghost" onClick={() => setShowAll(!showAll)}>{showAll ? '이 단계 전략만' : '모든 전략'}</button>}
+            </div>
+            {forStage.length === 0 && <p class="notice info">이 단계에 맞춘 전략은 다음 버전에서 더해져요. 지금은 아래 전략을 자유롭게 써 보세요.</p>}
+            <div class="grid-cards">
+              {shown.map((s) => (
+                <a key={s.id} href={`#/t/new/${s.id}`} class="card" style="padding:8px;text-decoration:none;color:inherit;display:flex;flex-direction:column">
+                  <StrategyArt id={s.id} />
+                  <span style="padding:16px 12px 12px;display:flex;flex-direction:column;gap:6px">
+                    <span style="font-weight:800;font-size:17px;letter-spacing:-0.03em">{s.name}</span>
+                    <span class="small muted" style="line-height:1.55">{s.summary}</span>
+                    <span class="small" style="color:var(--blue);font-weight:700;margin-top:4px">활동지 만들기 →</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <aside class="side stack" style="gap:16px">
+            <h2 class="title-md">진행 중인 과제</h2>
+            <ErrorNote error={error} />
+            {list === null && !error && <p class="muted">불러오는 중…</p>}
+            {list && list.length === 0 && <p class="card muted">아직 낸 과제가 없어요. 왼쪽에서 전략을 골라 활동지를 만들어 보세요.</p>}
+            {list && list.map((a) => (
+              <a key={a.id} href={`#/t/a/${a.id}`} class="card" style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:18px;padding:20px 22px">
+                <Donut value={a.submitted} total={room.size} label={`${room.size}명 중 ${a.submitted}명 제출`} />
+                <span class="stack" style="gap:3px;min-width:0">
+                  <span style="font-weight:800;font-size:17px;letter-spacing:-0.03em">{a.title}</span>
+                  <span class="small muted">{byId[a.strategy]?.name} · {room.size}명 중 {a.submitted}명 제출</span>
+                  <span class="small" style={`font-weight:700;color:${a.deadline < Date.now() ? 'var(--ink-2)' : 'var(--orange-text)'}`}>
+                    {a.deadline < Date.now() ? `마감됨 · ${fmtDateTime(a.expires_at)}까지 보관` : `마감 ${fmtDateTime(a.deadline)} · ${remaining(a.deadline)}`}
+                  </span>
+                </span>
+              </a>
+            ))}
+            <p class="small muted">제출물은 마감 후 14일 동안만 서버에 있어요. ‘모두 받기’로 받아 두면 이 기기의 보관함에 남아요.</p>
+          </aside>
+        </section>
+      </main>
+      {editing && <UnitDialog unit={unit || EMPTY_UNIT} onClose={() => setEditing(false)} onSave={async (u) => { await saveUnit(u); setEditing(false); }} />}
+    </>
+  );
+}
+
+function HeroArt({ panel }) {
+  const abs = (s) => `position:absolute;${s}`;
+  return (
+    <div aria-hidden="true" style={panel ? 'flex:1 1 320px;min-height:280px;background:#3355FF;position:relative;overflow:hidden' : 'flex:1 1 220px;height:180px;border-radius:24px;background:#3355FF;position:relative;overflow:hidden'}>
+      <span style={abs('right:-60px;top:-60px;width:240px;height:240px;border-radius:999px;background:#FFD43B')} />
+      <span style={abs('left:40px;bottom:0;width:160px;height:80px;border-radius:160px 160px 0 0;background:#FF6B3D')} />
+      <span style={abs('left:48px;top:44px;width:56px;height:56px;border-radius:16px;background:#fff')} />
+      <span style={abs('left:116px;top:44px;width:56px;height:56px;border-radius:16px;border:3px solid #fff')} />
+      {panel && <span style={abs('right:48px;bottom:48px;width:88px;height:88px;border-radius:0 0 0 88px;background:#2BB673')} />}
+    </div>
+  );
+}
+
+function UnitDialog({ unit, onClose, onSave }) {
+  const [u, setU] = useState({ ...unit, questions: { ...unit.questions } });
+  const [concepts, setConcepts] = useState(unit.concepts.join(', '));
+  const field = (key, label, placeholder, hint) => (
+    <div class="field">
+      <label for={'u-' + key}>{label}</label>
+      <input id={'u-' + key} class="input" value={u[key]} placeholder={placeholder} onInput={(e) => setU({ ...u, [key]: e.currentTarget.value })} />
+      {hint && <span class="hint">{hint}</span>}
+    </div>
+  );
+  const q = (key, label, placeholder) => (
+    <div class="field">
+      <label for={'uq-' + key}>{label}</label>
+      <input id={'uq-' + key} class="input" value={u.questions[key]} placeholder={placeholder} onInput={(e) => setU({ ...u, questions: { ...u.questions, [key]: e.currentTarget.value } })} />
+    </div>
+  );
+  const save = (e) => {
+    e.preventDefault();
+    onSave({ ...u, name: u.name.trim() || '이름 없는 단원', concepts: concepts.split(/[,，\n]/).map((s) => s.trim()).filter(Boolean) });
+  };
+  return (
+    <Dialog title="단원 정하기" onClose={onClose} wide>
+      <form class="stack-lg" onSubmit={save}>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+          {field('name', '단원 이름', '예: 동물의 생활')}
+          {field('subject', '학년과 과목', '예: 3학년 과학')}
+        </div>
+        {field('lens', '개념 렌즈', '예: 다양성', '단원 전체를 꿰뚫어 보는 큰 개념이에요. (예: 변화, 관계, 다양성, 상호작용)')}
+        <div class="field">
+          <label for="u-concepts">핵심 개념</label>
+          <input id="u-concepts" class="input" value={concepts} placeholder="예: 특징, 분류, 서식지, 적응" onInput={(e) => setConcepts(e.currentTarget.value)} />
+          <span class="hint">쉼표로 나눠 쓰세요. 일반화 문장 만들기에서 학생이 고르는 개념 단어로 쓰여요.</span>
+        </div>
+        <div class="field">
+          <label for="u-gen">이 단원의 일반화 (선생님이 목표로 하는 문장)</label>
+          <textarea id="u-gen" class="textarea" rows="2" value={u.generalization} placeholder="예: 동물은 생김새와 생활 방식의 공통점에 따라 무리 지을 수 있다." onInput={(e) => setU({ ...u, generalization: e.currentTarget.value })} />
+        </div>
+        <Tip title="안내 질문은 어떻게 쓰나요?">
+          <ul>
+            <li><strong>사실적 질문</strong>: 답이 정해져 있는 질문. 사례를 확인해요.</li>
+            <li><strong>개념적 질문</strong>: 여러 사례에 통하는 ‘왜, 어떻게’를 묻는 질문. 일반화로 이어져요.</li>
+            <li><strong>논쟁적 질문</strong>: 정답이 하나가 아니라 근거를 들어 토론하는 질문.</li>
+          </ul>
+        </Tip>
+        {q('factual', '사실적 질문 (선택)', '예: 곤충의 몸은 몇 부분으로 나뉘나요?')}
+        {q('conceptual', '개념적 질문 (선택)', '예: 우리는 왜 동물을 무리 지어 분류할까요?')}
+        {q('debatable', '논쟁적 질문 (선택)', '예: 모든 동물을 한 가지 기준으로 나눌 수 있을까요?')}
+        <div class="row" style="justify-content:flex-end">
+          <button type="button" class="btn" onClick={onClose}>취소</button>
+          <button class="btn primary">저장하기</button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
