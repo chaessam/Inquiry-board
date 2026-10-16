@@ -9,6 +9,7 @@ export const conceptAttainment = {
   id: 'concept-attainment',
   name: '개념 획득',
   stage: 'focus',
+  stages: ['focus'],
   summary: '예와 아니요 카드를 나누며 개념의 공통 특징을 스스로 찾아요.',
   forTeacher: '선생님이 ‘예’와 ‘아니요’ 보기 카드를 몇 장 놓아 두면, 학생이 남은 카드를 나누고 ‘예’ 카드의 공통점을 찾아 개념에 이름을 붙여요. 개념 이름을 먼저 알려 주지 않는 것이 핵심이에요.',
 

@@ -35,6 +35,7 @@ export const compareCases = {
   id: 'compare-cases',
   name: '사례 비교표',
   stage: 'investigate',
+  stages: ['investigate', 'organize'],
   summary: '여러 사례를 같은 기준으로 살펴보고, 같은 점과 다른 점에서 패턴을 찾아요.',
   forTeacher: '비교할 사례와 살펴볼 기준을 정해 주세요. 학생은 사례를 하나씩 조사해 표를 채운 뒤, 표 전체를 보며 같은 점과 다른 점을 찾고 알게 된 점을 문장으로 써요. 기준에 단원의 핵심 개념을 넣으면 사실에서 개념으로 올라가기 쉬워요.',
 

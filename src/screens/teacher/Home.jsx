@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
-import { store } from '../../lib/db.js';
+import { newDeviceId } from '../../lib/db.js';
+import { loadUnit, saveUnit as saveUnitRec } from '../../lib/records.js';
 import { api } from '../../lib/api.js';
 import { fmtDateTime, remaining } from '../../lib/format.js';
 import { STAGES } from '../../content/guides.js';
-import { STRATEGIES, byId, StrategyArt } from '../../strategies/index.jsx';
+import { STRATEGIES, byId, recommendedFor, StrategyArt } from '../../strategies/index.jsx';
 import { Tip, Donut, Dialog, ErrorNote } from '../../ui/kit.jsx';
 import { TeacherBar } from './Bar.jsx';
 
@@ -12,21 +13,26 @@ const EMPTY_UNIT = { name: '', subject: '', lens: '', concepts: [], generalizati
 export function TeacherHome(props) {
   const { room } = props;
   const [unit, setUnit] = useState(undefined);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(null); // 고칠 단원 (새 단원이면 빈 단원)
   const [list, setList] = useState(null);
   const [error, setError] = useState(null);
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     setUnit(undefined); setList(null); setError(null);
-    store.get('unit:' + room.id).then((u) => setUnit(u || null));
+    loadUnit(room.id).then(setUnit);
     api.listAssignments(room).then((r) => setList(r.assignments)).catch(setError);
   }, [room.id]);
 
-  const saveUnit = async (u) => { await store.set('unit:' + room.id, u); setUnit(u); };
+  const freshUnit = () => ({ ...EMPTY_UNIT, id: newDeviceId(), startedAt: Date.now() });
+  const saveUnit = async (u) => { const next = u.id ? u : { ...u, id: newDeviceId(), startedAt: Date.now() }; await saveUnitRec(room.id, next); setUnit(next); };
+  const startNewUnit = () => {
+    if (!confirm('지금 단원을 마치고 새 단원을 시작할까요? 지금까지의 기록은 보관함에 이 단원 이름으로 그대로 남아요.')) return;
+    setEditing(freshUnit());
+  };
   const stageIdx = STAGES.findIndex((s) => s.id === (unit?.stage || 'connect'));
   const stage = STAGES[stageIdx < 0 ? 0 : stageIdx];
-  const forStage = STRATEGIES.filter((s) => s.stage === stage.id);
+  const forStage = recommendedFor(stage.id);
   const shown = showAll || forStage.length === 0 ? STRATEGIES : forStage;
 
   return (
@@ -36,10 +42,11 @@ export function TeacherHome(props) {
         {unit === undefined ? null : unit === null ? (
           <section class="card" style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;padding:32px">
             <div class="stack" style="flex:999 1 420px;gap:10px">
-              <span class="eyebrow">첫 단계</span>
-              <h1 class="title-lg">지금 가르치는 단원을 정해요</h1>
-              <p class="muted">단원 이름과 핵심 개념을 넣어 두면, 사고전략을 준비할 때 개념 단어가 자동으로 채워져요. 이 정보는 이 기기에만 저장돼요.</p>
-              <div class="row" style="margin-top:6px"><button type="button" class="btn big dark" onClick={() => setEditing(true)}>단원 정하기</button></div>
+              <span class="eyebrow">수업 설계</span>
+              <h1 class="title-lg">단원을 설계하고 탐구를 시작해요</h1>
+              <p class="muted">단원 탭은 수업을 제대로 설계하고 시작할 때 쓰는 곳이에요. 단원 이름, 개념 렌즈, 핵심 개념, 안내 질문을 정해 두면 탐구 단계마다 알맞은 사고전략을 추천받고, 개념 단어가 활동지에 저절로 채워져요. 낸 과제는 보관함에서 이 단원 아래 단계별로 모여요.</p>
+              <p class="small muted">설계 없이 수업 중에 바로 칠판에 띄우고 싶다면 <a href="#/t/tools" style="font-weight:700">도구 모음</a>을 써 보세요. 단원 정보는 이 기기에만 저장돼요.</p>
+              <div class="row" style="margin-top:6px"><button type="button" class="btn big dark" onClick={() => setEditing(freshUnit())}>단원 설계하기</button></div>
             </div>
             <HeroArt />
           </section>
@@ -60,7 +67,11 @@ export function TeacherHome(props) {
                   <p style="font-size:21px;line-height:1.5;font-weight:700;letter-spacing:-0.03em">{unit.generalization}</p>
                 </div>
               )}
-              <div class="row"><button type="button" class="btn dark" onClick={() => setEditing(true)}>단원 고치기</button></div>
+              <div class="row">
+                <button type="button" class="btn dark" onClick={() => setEditing(unit)}>단원 고치기</button>
+                <button type="button" class="btn" onClick={startNewUnit}>새 단원 시작하기</button>
+                <a class="btn ghost" href={`#/t/archive/u/${unit.id}`}>이 단원 기록 보기</a>
+              </div>
             </div>
             <HeroArt panel />
           </section>
@@ -81,6 +92,14 @@ export function TeacherHome(props) {
             </div>
           </section>
         )}
+
+        <Tip title="단원 탭과 도구 모음은 무엇이 다른가요?">
+          <ul>
+            <li><strong>단원</strong>: 단원을 미리 설계하고, 관계맺기부터 평가하기까지 탐구 단계를 따라가며 과제를 내요. 낸 과제는 보관함에서 <strong>단원 → 탐구 단계 → 과제</strong> 순서로 모여요.</li>
+            <li><strong>도구 모음</strong>: 설계 없이 수업 중 언제든 사고전략을 꺼내 칠판에 띄우고 함께 채워요. 단원 밖 수업으로 날짜순 정리돼요.</li>
+            <li>지금 탐구 단계를 바꿔 두면, 여기서 내는 과제가 그 단계에 정리돼요.</li>
+          </ul>
+        </Tip>
 
         <section class="stack" style="gap:16px">
           <div class="row between">
@@ -111,7 +130,7 @@ export function TeacherHome(props) {
             {forStage.length === 0 && <p class="notice info">이 단계에 맞춘 전략은 다음 버전에서 더해져요. 지금은 아래 전략을 자유롭게 써 보세요.</p>}
             <div class="grid-cards">
               {shown.map((s) => (
-                <a key={s.id} href={`#/t/new/${s.id}`} class="card" style="padding:8px;text-decoration:none;color:inherit;display:flex;flex-direction:column">
+                <a key={s.id} href={`#/t/new/${s.id}?from=unit`} class="card" style="padding:8px;text-decoration:none;color:inherit;display:flex;flex-direction:column">
                   <StrategyArt id={s.id} />
                   <span style="padding:16px 12px 12px;display:flex;flex-direction:column;gap:6px">
                     <span style="font-weight:800;font-size:17px;letter-spacing:-0.03em">{s.name}</span>
@@ -145,7 +164,7 @@ export function TeacherHome(props) {
           </aside>
         </section>
       </main>
-      {editing && <UnitDialog unit={unit || EMPTY_UNIT} onClose={() => setEditing(false)} onSave={async (u) => { await saveUnit(u); setEditing(false); }} />}
+      {editing && <UnitDialog unit={editing} isNew={editing !== unit} onClose={() => setEditing(null)} onSave={async (u) => { await saveUnit(u); setEditing(null); }} />}
     </>
   );
 }
@@ -163,7 +182,7 @@ function HeroArt({ panel }) {
   );
 }
 
-function UnitDialog({ unit, onClose, onSave }) {
+function UnitDialog({ unit, isNew, onClose, onSave }) {
   const [u, setU] = useState({ ...unit, questions: { ...unit.questions } });
   const [concepts, setConcepts] = useState(unit.concepts.join(', '));
   const field = (key, label, placeholder, hint) => (
@@ -184,7 +203,7 @@ function UnitDialog({ unit, onClose, onSave }) {
     onSave({ ...u, name: u.name.trim() || '이름 없는 단원', concepts: concepts.split(/[,，\n]/).map((s) => s.trim()).filter(Boolean) });
   };
   return (
-    <Dialog title="단원 정하기" onClose={onClose} wide>
+    <Dialog title={isNew ? '새 단원 설계하기' : '단원 고치기'} onClose={onClose} wide>
       <form class="stack-lg" onSubmit={save}>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
           {field('name', '단원 이름', '예: 동물의 생활')}

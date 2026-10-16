@@ -12,6 +12,7 @@ export const frayer = {
   id: 'frayer',
   name: '프레이어 모델',
   stage: 'focus',
+  stages: ['focus', 'assess'],
   summary: '정의, 특징, 예, 예가 아닌 것을 네 칸에 정리해요.',
   forTeacher: '가운데 개념을 두고 네 칸을 채우며 개념을 또렷하게 해요. 개념 획득 다음 차시에 쓰면, 학생이 찾은 특징을 정의로 다듬을 수 있어요.',
 
@@ -119,6 +120,31 @@ export const frayer = {
         )
       }
     ];
+  },
+
+  // 함께 보기: 네 칸을 한 화면에 크게
+  Board({ payload: p, answer: a, set }) {
+    return (
+      <div class="stack-lg">
+        <div class="frayer board-frayer">
+          {CELLS.map((c) => (
+            <label class="cell" key={c.key} for={'frb-' + c.key}>
+              <span class="label" style="font-size:16px">{c.name}</span>
+              <span class="small muted">{p.prompts[c.key] || c.ask}</span>
+              <textarea id={'frb-' + c.key} class="board-text" rows="4" value={a[c.key]} onInput={(e) => set({ ...a, [c.key]: e.currentTarget.value })} />
+              <p class="print-only board-print">{a[c.key] || '—'}</p>
+            </label>
+          ))}
+          <span class="center">{p.concept}</span>
+        </div>
+        <Tip title="칠판에서 이렇게 써 보세요">
+          <ul>
+            <li>‘예’와 ‘예가 아닌 것’을 먼저 모은 뒤, 둘을 가르는 기준을 ‘특징’ 칸에 정리하면 정의를 쓰기 쉬워요.</li>
+            <li>정의는 반 친구들이 함께 다듬어요. ‘이 정의로 예가 아닌 것을 걸러 낼 수 있을까?’를 물어보세요.</li>
+          </ul>
+        </Tip>
+      </div>
+    );
   },
 
   View({ payload: p, content: a }) {

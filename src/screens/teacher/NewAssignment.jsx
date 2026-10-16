@@ -8,9 +8,11 @@ import { WorksheetShell } from '../../strategies/Shell.jsx';
 import { STAGES } from '../../content/guides.js';
 import { Tip, Dialog, ErrorNote, QR, joinUrl } from '../../ui/kit.jsx';
 import { TeacherBar } from './Bar.jsx';
+import { FileUnder } from './FileUnder.jsx';
+import { loadUnit, filingFor, outsideFiling, fileAssignment } from '../../lib/records.js';
 
 export function NewAssignment(props) {
-  const { room, strategyId } = props;
+  const { room, strategyId, query } = props;
   const s = byId[strategyId];
   const [unit, setUnit] = useState(null);
   const [title, setTitle] = useState('');
@@ -21,14 +23,33 @@ export function NewAssignment(props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [done, setDone] = useState(null);
+  const [filing, setFiling] = useState(null);
+  const [fromLive, setFromLive] = useState(null);
+  const from = query?.get('live') ? 'live' : query?.get('from') || '';
 
   useEffect(() => {
     if (!s) return;
-    store.get('unit:' + room.id).then((u) => { setUnit(u); setPayload(s.defaultPayload(u)); });
+    (async () => {
+      const u = await loadUnit(room.id);
+      setUnit(u);
+      const stageQ = query?.get('stage');
+      // 함께 보기에서 왔으면 준비한 질문·카드를 그대로 가져와요
+      const live = query?.get('live') ? await store.get('live:' + query.get('live')) : null;
+      if (live && live.strategy === s.id) {
+        setTitle(live.title || '');
+        setPayload(live.payload);
+        setFiling(live.filed || outsideFiling(s.stage));
+        setFromLive(live);
+        return;
+      }
+      setPayload(s.defaultPayload(u));
+      // 도구 모음에서 왔거나 단원이 없으면 ‘단원 밖 수업’, 단원 탭에서 왔으면 지금 단원의 지금 단계
+      setFiling(from === 'tools' || !u?.id ? outsideFiling(stageQ || s.stage) : filingFor(u, u.stage));
+    })();
   }, [strategyId, room.id]);
 
   if (!s) return <main class="page"><p>알 수 없는 전략이에요. <a href="#/t">홈으로</a></p></main>;
-  if (!payload) return null;
+  if (!payload || !filing) return null;
 
   const fillExample = () => {
     const { title: t, ...p } = s.example();
@@ -41,16 +62,18 @@ export function NewAssignment(props) {
     setBusy(true); setError(null);
     try {
       const r = await api.createAssignment(room, { strategy: s.id, title: title.trim(), payload, deadline: fromLocalInput(deadline) });
+      await fileAssignment(r.assignment.id, { ...filing, roomId: room.id, strategy: s.id, title: title.trim(), liveId: fromLive?.id || null });
       setDone(r.assignment);
     } catch (err) { setError(err); }
     setBusy(false);
   };
 
   const stageName = STAGES.find((x) => x.id === s.stage)?.name;
+  const viaTools = from === 'tools' || from === 'live';
 
   return (
     <>
-      <TeacherBar {...props} current="home" />
+      <TeacherBar {...props} current={viaTools ? 'tools' : 'home'} />
       <main class="page narrow">
         <div class="row" style="gap:20px;align-items:flex-end">
           <div style="width:200px;flex:none"><StrategyArt id={s.id} /></div>
@@ -60,7 +83,8 @@ export function NewAssignment(props) {
             <p class="muted">{s.summary}</p>
           </div>
         </div>
-        <Tip title={`${s.name}은(는) 이렇게 써요`} tone="blue" open>
+        {fromLive && <p class="notice ok" style="margin:0">함께 보기에서 준비한 제목과 내용을 그대로 가져왔어요. 고칠 곳이 있으면 고친 뒤 과제로 내 주세요. 함께 보기 기록은 그대로 남아요.</p>}
+        <Tip title={`${s.name}은(는) 이렇게 써요`} tone="blue" open={!fromLive}>
           <p>{s.forTeacher}</p>
           <div class="row"><button type="button" class="btn small" onClick={fillExample}>예시로 채워 보기 (곤충·동물 단원)</button></div>
         </Tip>
@@ -90,6 +114,17 @@ export function NewAssignment(props) {
             <input id="na-deadline" class="input" type="datetime-local" value={deadline} onInput={(e) => setDeadline(e.currentTarget.value)} />
             <span class="hint">마감 뒤 14일 동안 제출물을 서버에 보관해요. 그 안에 ‘모두 받기’를 눌러 주세요.</span>
           </div>
+          <div class="stack" style="gap:8px">
+            <span class="field-label">보관함 정리</span>
+            <FileUnder roomId={room.id} value={filing} onChange={setFiling} idPrefix="na" />
+            <Tip title="보관함 정리는 왜 하나요?">
+              <ul>
+                <li>‘모두 받기’로 받아 둔 결과물이 보관함에서 <strong>단원 → 탐구 단계 → 과제</strong> 순서로 모여요.</li>
+                <li>단원을 정하지 않고 낸 과제는 ‘단원 밖 수업’에 날짜순으로 정리돼요.</li>
+                <li>이 정보는 이 기기에만 저장되고, 학생에게는 보이지 않아요. 나중에 보관함에서 바꿀 수도 있어요.</li>
+              </ul>
+            </Tip>
+          </div>
           <ErrorNote error={error} />
           <div class="row">
             <button type="button" class="btn big primary" disabled={!!problem || busy} onClick={publish}>{busy ? '내는 중…' : `${room.label}에 과제 내기`}</button>
@@ -110,7 +145,7 @@ export function NewAssignment(props) {
             </div>
           </div>
           <div class="row" style="justify-content:flex-end">
-            <button type="button" class="btn" onClick={() => go('/t')}>홈으로</button>
+            <button type="button" class="btn" onClick={() => go(viaTools ? '/t/tools' : '/t')}>{viaTools ? '도구 모음으로' : '단원으로'}</button>
             <button type="button" class="btn primary" onClick={() => go('/t/a/' + done.id)}>제출 현황 보기</button>
           </div>
         </Dialog>

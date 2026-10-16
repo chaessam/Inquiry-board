@@ -6,6 +6,7 @@ export const seeThinkWonder = {
   id: 'see-think-wonder',
   name: '보고-생각하고-궁금해하기',
   stage: 'connect',
+  stages: ['connect', 'investigate'],
   summary: '사진이나 물건을 자세히 보고, 떠오른 생각과 궁금한 점을 차례로 써요.',
   forTeacher: '사진, 영상, 실물처럼 함께 볼 자료를 화면에 띄우거나 나눠 주세요. 학생은 ‘보이는 것’과 ‘생각’을 나누어 쓰고, 마지막에 궁금한 점을 질문으로 만들어요. 모인 질문은 단원 탐구 질문을 고를 때 좋은 재료가 돼요.',
 
@@ -107,6 +108,39 @@ export const seeThinkWonder = {
         )
       }
     ];
+  },
+
+  // 함께 보기: 세 칸을 한 화면에 나란히 두고 반 친구들의 말을 받아 적어요
+  Board({ payload: p, answer: a, set }) {
+    const cols = [
+      { key: 'see', name: '보았어요', ask: '무엇이 보이나요?', bg: '#E8ECFF', color: '#1F3BD1', tips: T.see },
+      { key: 'think', name: '생각해요', ask: '본 것을 보고 어떤 생각이 드나요?', bg: '#FFF6D1', color: '#6B5300', tips: T.think },
+      { key: 'wonder', name: '궁금해요', ask: '무엇이 궁금한가요?', bg: '#FFE9E0', color: '#B83C12', tips: T.wonder }
+    ];
+    return (
+      <div class="stack-lg">
+        <p class="board-prompt">{p.material}</p>
+        {p.focus && <div class="row" style="gap:8px"><span class="label">살펴볼 곳</span>{p.focus.split(/\s*[,、]\s*/).filter(Boolean).map((f) => <span key={f} class="chip butter" style="font-size:16px">{f}</span>)}</div>}
+        <div class="board-cols">
+          {cols.map((c) => (
+            <label key={c.key} class="board-col" for={'stwb-' + c.key} style={`background:${c.bg}`}>
+              <span class="zone-title" style={`color:${c.color};font-size:30px`}>{c.name}</span>
+              <span class="small" style={`color:${c.color};font-weight:700`}>{c.ask}</span>
+              <textarea id={'stwb-' + c.key} class="board-text" rows="8" value={a[c.key]} placeholder="친구들의 말을 한 줄에 하나씩 적어요."
+                onInput={(e) => set({ ...a, [c.key]: e.currentTarget.value })} />
+              <p class="print-only board-print">{a[c.key] || '—'}</p>
+            </label>
+          ))}
+        </div>
+        <Tip title="칠판에서 이렇게 써 보세요">
+          <ul>
+            <li>‘보았어요’ 칸부터 차례로 채워요. 생각이 섞여 나오면 ‘그건 생각 칸에 적어 둘까?’ 하고 옮겨 주세요.</li>
+            <li>‘생각해요’는 ‘왜 그렇게 생각했니? 무엇을 보고?’를 물어 근거를 함께 적어요.</li>
+            <li>‘궁금해요’에 모인 질문은 다음 탐구 질문을 고르는 좋은 재료가 돼요.</li>
+          </ul>
+        </Tip>
+      </div>
+    );
   },
 
   View({ content: a }) {

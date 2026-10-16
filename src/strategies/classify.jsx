@@ -26,6 +26,7 @@ export const classify = {
   id: 'classify',
   name: '분류하기',
   stage: 'organize',
+  stages: ['organize', 'investigate'],
   summary: '카드를 기준에 따라 무리 지어 나누고, 무리마다 공통점을 찾아요.',
   forTeacher: '나눌 카드를 넣어 주세요. 무리 이름을 비워 두면 학생이 스스로 기준과 무리를 정하고(열린 분류), 무리 이름을 넣으면 그 무리로 나눠요(닫힌 분류). 어디에 넣을지 고민되는 카드는 ‘애매해요’ 칸에 둘 수 있어서 수업 대화 거리가 돼요.',
 

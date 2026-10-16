@@ -34,6 +34,7 @@ export const diamondRank = {
   id: 'diamond-rank',
   name: '다이아몬드 랭킹',
   stage: 'organize',
+  stages: ['organize', 'transfer'],
   summary: '카드를 다이아몬드 모양으로 놓으며 무엇이 더 중요한지 순위를 매겨요.',
   forTeacher: '질문 하나와 카드 9장(처음 하는 반은 4장)을 넣어 주세요. 학생은 가장 중요한 카드를 맨 위에, 가장 덜 중요한 카드를 맨 아래에 놓고 까닭을 써요. 가운데 줄은 ‘비슷하게 중요해요’라서 순서를 하나하나 정하는 부담을 덜어 줘요. 정답이 없는 활동이라 친구와 비교하며 이야기 나누기 좋아요.',
 
