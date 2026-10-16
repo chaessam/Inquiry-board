@@ -12,7 +12,7 @@ export function Logo({ size = 32 }) {
 }
 
 export function Brand({ href = '#/' }) {
-  return <a class="brand" href={href}><Logo /><span>생각틀</span></a>;
+  return <a class="brand" href={href}><Logo /><span>탐구보드</span></a>;
 }
 
 // 접었다 펼 수 있는 도움말 상자. 처음 보는 학생도 이해하도록 짧고 친절하게.

@@ -12,7 +12,7 @@ export function Privacy() {
         <div class="stack" style="gap:8px">
           <span class="eyebrow">개인정보 안내</span>
           <h1 class="title-lg">내 정보는 이렇게 다뤄요</h1>
-          <p class="muted">생각틀은 학생 이름을 서버에 보내지 않고, 제출물도 잠깐만 보관하도록 만들었어요.</p>
+          <p class="muted">탐구보드은 학생 이름을 서버에 보내지 않고, 제출물도 잠깐만 보관하도록 만들었어요.</p>
         </div>
 
         <section class="card stack">
@@ -45,7 +45,7 @@ export function Privacy() {
           <h2 class="title-md">모으지 않는 것</h2>
           <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
             <li>학생의 이름, 전화번호, 이메일, 사진은 서버로 보내지 않아요.</li>
-            <li>회원 가입이 없어요. 선생님은 ‘교실 코드와 비밀번호 4자리’로, 학생은 ‘교실 코드와 번호’로 들어와요.</li>
+            <li>회원 가입이 없어요. 선생님은 ‘교실 이름과 비밀번호 4자리’로, 학생은 ‘교실 코드와 번호’로 들어와요.</li>
             <li>광고, 방문 통계, 추적 쿠키를 쓰지 않아요. 글꼴도 앱 안에 넣어 두어 외부로 요청이 나가지 않아요.</li>
           </ul>
         </section>

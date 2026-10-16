@@ -49,7 +49,7 @@ export function ClassPage(props) {
   };
 
   const forget = async () => {
-    if (!confirm('이 기기에서만 교실을 빼요. 교실 코드와 선생님 비밀번호로 다시 들어올 수 있어요. 계속할까요?')) return;
+    if (!confirm('이 기기에서만 교실을 빼요. 교실 이름과 비밀번호로 다시 들어올 수 있어요. 계속할까요?')) return;
     const rest = teacher.classrooms.filter((c) => c.id !== room.id);
     await setTeacher({ classrooms: rest, currentId: rest[0]?.id });
     go(rest.length ? '/t' : '/t/start');

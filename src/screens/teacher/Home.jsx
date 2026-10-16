@@ -126,7 +126,7 @@ export function TeacherHome(props) {
           <aside class="side stack" style="gap:16px">
             <h2 class="title-md">진행 중인 과제</h2>
             <ErrorNote error={error} />
-            {error && /다시 들어와/.test(error.message) && <a class="btn primary" href="#/t/start">교실 코드와 비밀번호로 다시 들어오기</a>}
+            {error && /다시 들어와/.test(error.message) && <a class="btn primary" href="#/t/start">교실 이름과 비밀번호로 다시 들어오기</a>}
             {list === null && !error && <p class="muted">불러오는 중…</p>}
             {list && list.length === 0 && <p class="card muted">아직 낸 과제가 없어요. 왼쪽에서 사고전략을 골라 준비해 보세요.</p>}
             {list && list.map((a) => (

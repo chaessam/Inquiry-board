@@ -20,7 +20,7 @@ export function ArchivePage(props) {
     const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `생각틀-보관함-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `탐구보드-보관함-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
   };
 

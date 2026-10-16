@@ -4,7 +4,7 @@ import { Logo, Tip } from '../ui/kit.jsx';
 const USES = [
   {
     title: '함께 보며 생각해요',
-    text: 'TV나 전자칠판에 띄워 반 친구들의 생각을 이름 없이 크게 모아 보고, 비교하며 이야기 나눠요.',
+    text: 'TV나 전자칠판에 띄워 반 친구들의 생각을 크게 모아 보고, 비교하며 이야기 나눠요.',
     art: (
       <span aria-hidden="true" style="position:relative;display:block;width:56px;height:56px;border-radius:16px;background:#3355FF;overflow:hidden">
         <span style="position:absolute;left:10px;top:12px;width:36px;height:24px;border-radius:6px;background:#fff" />
@@ -43,7 +43,7 @@ export function Landing({ teacher, student }) {
         <Logo size={48} />
         <span class="eyebrow">개념기반탐구 수업 도구</span>
         <h1 class="title-xl">사실에서 개념으로,<br />함께 깊어지는 생각</h1>
-        <p class="muted" style="font-size:17px">생각틀은 개념기반탐구 수업을 위한 종합 도구예요. 개념 획득, 프레이어 모델, 일반화 같은 사고전략을 칠판에 띄워 함께 생각하고, 학생 각자의 기기에서 쓰고 제출해요.</p>
+        <p class="muted" style="font-size:17px">탐구보드는 개념기반탐구 수업을 위한 종합 도구예요. 개념 획득, 프레이어 모델, 일반화 같은 사고전략을 함께 보며 생각하고, 학생들에게 과제로 내주고 제출도 받을 수 있어요.</p>
       </section>
 
       <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
@@ -62,7 +62,7 @@ export function Landing({ teacher, student }) {
           <a class="card" href={teacher?.classrooms?.length ? '#/t' : '#/t/start'} style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:18px;border:2px solid var(--ink)">
             <span class="stack" style="gap:2px;flex:1">
               <span class="title-md">선생님</span>
-              <span class="muted">{teacher?.classrooms?.length ? '내 교실로 가기' : '교실을 만들고 수업을 준비해요'}</span>
+              <span class="muted">{teacher?.classrooms?.length ? '내 교실로 가기' : '새 교실을 만들거나 내 교실에 들어가요'}</span>
             </span>
             <span aria-hidden="true" style="font-size:22px;font-weight:800">→</span>
           </a>

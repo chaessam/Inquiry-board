@@ -1,5 +1,5 @@
 // 서버 우편함 API (Cloudflare Pages Functions + D1)
-// - 교실: 교사는 '교실 코드 + 비밀번호 4자리'로 처음 한 번 들어오고, 그 뒤로는 기기 열쇠로 구분합니다.
+// - 교실: 교사는 '교실 이름 + 비밀번호 4자리'로 처음 한 번 들어오고, 그 뒤로는 기기 열쇠로 구분합니다.
 //   학생은 '교실 코드 + 번호'로 구분합니다.
 // - 과제와 제출물은 마감 후 14일이 지나면 지웁니다(요청이 들어올 때 함께 정리).
 // - 학생 이름은 서버로 오지 않습니다.
@@ -49,34 +49,36 @@ async function route(request, env, p, url) {
   if (m === 'POST' && p.length === 1 && p[0] === 'classrooms') {
     await limit('create');
     const body = await readJson(request);
-    const label = cleanText(body.label, 30) || '우리 반';
+    const label = checkLabel(body.label);
     const size = clampInt(body.size, 1, MAX_CLASS_SIZE);
     const pin = checkPin(body.pin);
     await cleanup(db);
+    await requireFreeName(db, label);
     const adminKey = randomKey(); // 이 기기의 열쇠 (선생님에게는 보이지 않아요)
     const now = Date.now();
     const id = randomId();
     for (let i = 0; i < 5; i++) {
       const code = randomCode();
       try {
-        await db.prepare('INSERT INTO classrooms (id, code, label, size, admin_hash, pin_hash, created_at, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .bind(id, code, label, size, await sha256(adminKey), await pinHash(env, id, pin), now, now).run();
+        await db.prepare('INSERT INTO classrooms (id, code, label, name_key, size, admin_hash, pin_hash, created_at, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .bind(id, code, label, nameKey(label), size, await sha256(adminKey), await pinHash(env, id, pin), now, now).run();
         return json({ classroom: { id, code, label, size }, adminKey }, 201);
       } catch (e) {
+        if (String(e).includes('name_key')) throw new HttpError(409, NAME_TAKEN);
         if (!String(e).includes('UNIQUE')) throw e;
       }
     }
     throw new HttpError(500, '교실 코드를 만들지 못했어요. 다시 해 주세요.');
   }
 
-  // 다른 기기에서 들어오기: 교실 코드 + 비밀번호 4자리
+  // 다른 기기에서 들어오기: 교실 이름 + 비밀번호 4자리
   if (m === 'POST' && p.length === 2 && p[0] === 'teacher' && p[1] === 'login') {
     await limit('login');
     const body = await readJson(request);
-    const code = String(body.code || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+    const key = nameKey(cleanText(body.name, 30));
     const pin = String(body.pin || '');
-    const room = await db.prepare('SELECT id, code, label, size, pin_hash, pin_fails, pin_locked_until FROM classrooms WHERE code = ?').bind(code).first();
-    const fail = '교실 코드나 비밀번호가 맞지 않아요.';
+    const room = key ? await db.prepare('SELECT id, code, label, size, pin_hash, pin_fails, pin_locked_until FROM classrooms WHERE name_key = ?').bind(key).first() : null;
+    const fail = '교실 이름이나 비밀번호가 맞지 않아요.';
     if (!room || !room.pin_hash) {
       await limit('miss');
       throw new HttpError(401, fail);
@@ -107,9 +109,15 @@ async function route(request, env, p, url) {
 
     if (m === 'PATCH' && p.length === 2) {
       const body = await readJson(request);
-      const label = cleanText(body.label, 30) || room.label;
+      const label = body.label == null ? room.label : checkLabel(body.label);
       const size = body.size == null ? room.size : clampInt(body.size, 1, MAX_CLASS_SIZE);
-      await db.prepare('UPDATE classrooms SET label = ?, size = ? WHERE id = ?').bind(label, size, room.id).run();
+      if (nameKey(label) !== nameKey(room.label)) await requireFreeName(db, label);
+      try {
+        await db.prepare('UPDATE classrooms SET label = ?, name_key = ?, size = ? WHERE id = ?').bind(label, nameKey(label), size, room.id).run();
+      } catch (e) {
+        if (String(e).includes('UNIQUE')) throw new HttpError(409, NAME_TAKEN);
+        throw e;
+      }
       return json({ classroom: { id: room.id, code: room.code, label, size } });
     }
 
@@ -308,18 +316,33 @@ function clampInt(v, min, max) {
 async function requireTeacher(request, db, id) {
   const auth = request.headers.get('authorization') || '';
   const key = normalizeKey(auth.replace(/^Bearer\s+/i, ''));
-  if (!key) throw new HttpError(401, '선생님 기기로 들어와 있지 않아요. 교실 코드와 비밀번호로 다시 들어와 주세요.');
+  if (!key) throw new HttpError(401, '선생님 기기로 들어와 있지 않아요. 교실 이름과 비밀번호로 다시 들어와 주세요.');
   const h = await sha256(key);
   const room = await db.prepare(
     `SELECT id, code, label, size, (admin_hash = ?) AS via_admin FROM classrooms
       WHERE id = ? AND (admin_hash = ? OR EXISTS (SELECT 1 FROM teacher_tokens t WHERE t.token_hash = ? AND t.classroom_id = classrooms.id))`
   ).bind(h, id, h, h).first();
-  if (!room) throw new HttpError(403, '이 기기는 교실에서 나가 있어요. 교실 코드와 비밀번호로 다시 들어와 주세요.');
+  if (!room) throw new HttpError(403, '이 기기는 교실에서 나가 있어요. 교실 이름과 비밀번호로 다시 들어와 주세요.');
   await db.batch([
     db.prepare('UPDATE classrooms SET last_used = ? WHERE id = ?').bind(Date.now(), room.id),
     db.prepare('UPDATE teacher_tokens SET last_used = ? WHERE token_hash = ?').bind(Date.now(), h)
   ]);
   return { id: room.id, code: room.code, label: room.label, size: room.size, key, viaAdmin: !!room.via_admin };
+}
+
+// 교실 이름은 로그인 이름이라 다른 교실과 겹치면 안 돼요 (띄어쓰기·대소문자는 무시)
+const NAME_TAKEN = '같은 이름의 교실이 이미 있어요. 학교 이름을 붙이는 등 다르게 지어 주세요. (예: 한빛초 3학년 2반)';
+function nameKey(label) {
+  return String(label || '').toLowerCase().replace(/\s+/g, '');
+}
+function checkLabel(v) {
+  const label = cleanText(v, 30);
+  if (nameKey(label).length < 2) throw new HttpError(400, '교실 이름을 2글자 이상 써 주세요.');
+  return label;
+}
+async function requireFreeName(db, label) {
+  const taken = await db.prepare('SELECT 1 FROM classrooms WHERE name_key = ?').bind(nameKey(label)).first();
+  if (taken) throw new HttpError(409, NAME_TAKEN);
 }
 
 // 비밀번호 4자리: 너무 쉬운 번호는 받지 않아요

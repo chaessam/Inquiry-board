@@ -1,14 +1,14 @@
 {
-  "name": "saenggakteul",
+  "name": "inquiry-board",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "개념기반탐구 수업을 위한 사고전략 활동지 도구 (가칭 생각틀)",
+  "description": "개념기반탐구 수업을 위한 수업 종합 도구, 탐구보드",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "db:migrate:local": "wrangler d1 migrations apply saenggakteul --local",
-    "db:migrate:remote": "wrangler d1 migrations apply saenggakteul --remote",
+    "db:migrate:local": "wrangler d1 migrations apply inquiry-board --local",
+    "db:migrate:remote": "wrangler d1 migrations apply inquiry-board --remote",
     "serve": "npm run build && wrangler pages dev dist --port 8788",
     "deploy": "npm run build && wrangler pages deploy dist"
   },

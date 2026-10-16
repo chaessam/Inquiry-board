@@ -21,7 +21,7 @@ async function call(method, path, { body, key } = {}) {
 
 export const api = {
   createClassroom: (label, size, pin) => call('POST', 'classrooms', { body: { label, size, pin } }),
-  login: (code, pin) => call('POST', 'teacher/login', { body: { code, pin } }),
+  login: (name, pin) => call('POST', 'teacher/login', { body: { name, pin } }),
   changePin: (room, pin, signOutOthers = true) => call('PUT', `classrooms/${room.id}/pin`, { body: { pin, signOutOthers }, key: room.adminKey }),
   updateClassroom: (room, patch) => call('PATCH', `classrooms/${room.id}`, { body: patch, key: room.adminKey }),
   deleteClassroom: (room) => call('DELETE', `classrooms/${room.id}`, { key: room.adminKey }),

@@ -1,4 +1,4 @@
-# 생각틀 (가칭)
+# 탐구보드 (inquiry-board)
 
 개념기반탐구 수업을 위한 사고전략 활동지 도구입니다.
 선생님은 활동지를 만들어 과제로 내고, 학생은 크롬북·태블릿·휴대폰에서 바로 쓰고 제출합니다.
@@ -7,7 +7,7 @@
 
 | 영역 | 내용 |
 | --- | --- |
-| 교실 | 가입 없이 교실 만들기, 학생용 교실 코드(6자리)와 QR, 선생님 비밀번호(숫자 4자리)로 다른 기기에서 들어오기 |
+| 교실 | 가입 없이 교실 만들기, 학생용 교실 코드(6자리)와 QR, 교실 이름 + 비밀번호(숫자 4자리)로 어느 기기에서든 들어오기 (교실 이름은 서로 겹치지 않게) |
 | 학생 입장 | 교실 코드(또는 QR) → 내 번호 누르기. 기기가 번호를 기억. ‘내 과제’에서 번호 바꾸기 |
 | 장난 막기 | 접속 주소별 요청 횟수 제한, 비밀번호 5번 틀리면 교실 잠금(15분부터 최대 하루), 쉬운 비밀번호 거절 |
 | 번호 정리 | 잘못된 번호로 낸 답을 선생님이 제출 현황에서 다른 번호로 옮기기 |
@@ -61,7 +61,7 @@ npm run serve
 2. 데이터베이스를 만듭니다. 출력된 `database_id`를 `wrangler.toml`의 `database_id`에 붙여 넣으세요.
 
    ```bash
-   npx wrangler d1 create saenggakteul
+   npx wrangler d1 create inquiry-board
    ```
 
 3. 서버 데이터베이스에 표를 만듭니다.
@@ -75,14 +75,14 @@ npm run serve
    (`npx wrangler pages secret put PIN_PEPPER`) 단, `PIN_PEPPER`를 나중에 바꾸면 기존 교실 비밀번호가 맞지 않게 되니 처음 한 번만 정하세요.
 
    ```bash
-   npx wrangler pages project create saenggakteul --production-branch main
+   npx wrangler pages project create inquiry-board --production-branch main
    ```
 
    ```bash
    npm run deploy
    ```
 
-배포가 끝나면 `https://saenggakteul.pages.dev` 같은 주소가 나옵니다.
+배포가 끝나면 `https://inquiry-board.pages.dev` 같은 주소가 나옵니다.
 요청 수는 Workers 유료 요금제(월 5달러)의 계정 한도를 다른 서비스와 함께 씁니다.
 
 ## 폴더 구성
