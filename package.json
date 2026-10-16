@@ -13,6 +13,8 @@
     "deploy": "npm run build && wrangler pages deploy dist"
   },
   "dependencies": {
+    "@fontsource/gothic-a1": "^5.3.0",
+    "@fontsource/jua": "^5.3.0",
     "preact": "^10.26.0",
     "qrcode-generator": "^1.4.4"
   },

@@ -3,6 +3,7 @@ import { useHashPath, match, go } from './lib/router.js';
 import { store } from './lib/db.js';
 import { ToastHost, Loading } from './ui/kit.jsx';
 import { Landing } from './screens/Landing.jsx';
+import { Privacy, FooterLinks } from './screens/Privacy.jsx';
 import { Onboarding } from './screens/teacher/Onboarding.jsx';
 import { TeacherHome } from './screens/teacher/Home.jsx';
 import { ClassPage } from './screens/teacher/ClassPage.jsx';
@@ -39,6 +40,7 @@ export function App() {
   let screen;
 
   if (path === '/' || path === '') screen = <Landing teacher={teacher} student={student} />;
+  else if (path === '/privacy') screen = <Privacy />;
   else if (path === '/t/start') screen = <Onboarding {...tprops} />;
   else if (path.startsWith('/t') && !room) { go('/t/start'); screen = <Loading />; }
   else if (path === '/t') screen = <TeacherHome {...tprops} />;
@@ -53,5 +55,5 @@ export function App() {
   else if ((m = match('/s/a/:id', path))) screen = student ? <DoTask student={student} setStudent={setStudent} id={m.id} /> : (go('/join'), <Loading />);
   else screen = <Landing teacher={teacher} student={student} />;
 
-  return <>{screen}<ToastHost /></>;
+  return <>{screen}{path !== '/privacy' && <FooterLinks />}<ToastHost /></>;
 }

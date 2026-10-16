@@ -75,7 +75,15 @@ export function StatusPage(props) {
         )}
         <ErrorNote error={error} />
 
-        <Board assignment={a} submissions={data.submissions} size={room.size} roster={roster} projector={projector} />
+        <Board assignment={a} submissions={data.submissions} size={room.size} roster={roster} projector={projector}
+          onMove={async (subId, number) => {
+            try {
+              await api.moveSubmission(room, id, subId, number);
+              await load();
+              toast(`${number}번 답으로 옮겼어요.`);
+              return true;
+            } catch (e) { setError(e); return false; }
+          }} />
 
         {!projector && (
           <>

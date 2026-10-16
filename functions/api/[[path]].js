@@ -1,5 +1,6 @@
 // 서버 우편함 API (Cloudflare Pages Functions + D1)
-// - 교실: 교사는 '관리 코드'로, 학생은 '교실 코드 + 번호'로 구분합니다.
+// - 교실: 교사는 '교실 코드 + 비밀번호 4자리'로 처음 한 번 들어오고, 그 뒤로는 기기 열쇠로 구분합니다.
+//   학생은 '교실 코드 + 번호'로 구분합니다.
 // - 과제와 제출물은 마감 후 14일이 지나면 지웁니다(요청이 들어올 때 함께 정리).
 // - 학생 이름은 서버로 오지 않습니다.
 
@@ -11,7 +12,18 @@ const MAX_JSON_BYTES = 32 * 1024;
 const MAX_REVISIONS = 30;
 const MAX_ACTIVE_ASSIGNMENTS = 60;
 const MAX_CLASS_SIZE = 40;
-const STRATEGIES = ['concept-attainment', 'frayer', 'generalization'];
+// 장난 요청 막기: 같은 접속 주소에서 시간 창마다 받을 수 있는 횟수
+// 학교는 반 전체가 같은 주소로 나가므로 넉넉하게 잡습니다.
+const MIN = 60 * 1000;
+const LIMITS = {
+  create: [5, 60 * MIN],      // 교실 만들기
+  login: [20, 10 * MIN],      // 교사 비밀번호로 들어오기 (교실마다 따로 잠금도 있어요)
+  miss: [30, 10 * MIN],       // 없는 교실 코드 넣기
+  read: [1500, 10 * MIN],     // 학생 화면 읽기
+  submit: [600, 10 * MIN],    // 제출
+  move: [100, 10 * MIN]       // 교사가 제출물 번호 옮기기
+};
+const STRATEGIES = ['concept-attainment', 'frayer', 'generalization', 'see-think-wonder', 'compare-cases', 'classify', 'diamond-rank', 'used-to-think'];
 const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 
 export async function onRequest(context) {
@@ -31,21 +43,24 @@ export async function onRequest(context) {
 async function route(request, env, p, url) {
   const m = request.method;
   const db = env.DB;
+  const limit = (name) => rateLimit(db, request, env, name);
 
   // 교실 만들기
   if (m === 'POST' && p.length === 1 && p[0] === 'classrooms') {
+    await limit('create');
     const body = await readJson(request);
     const label = cleanText(body.label, 30) || '우리 반';
     const size = clampInt(body.size, 1, MAX_CLASS_SIZE);
+    const pin = checkPin(body.pin);
     await cleanup(db);
-    const adminKey = randomKey();
+    const adminKey = randomKey(); // 이 기기의 열쇠 (선생님에게는 보이지 않아요)
     const now = Date.now();
     const id = randomId();
     for (let i = 0; i < 5; i++) {
       const code = randomCode();
       try {
-        await db.prepare('INSERT INTO classrooms (id, code, label, size, admin_hash, created_at, last_used) VALUES (?, ?, ?, ?, ?, ?, ?)')
-          .bind(id, code, label, size, await sha256(adminKey), now, now).run();
+        await db.prepare('INSERT INTO classrooms (id, code, label, size, admin_hash, pin_hash, created_at, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .bind(id, code, label, size, await sha256(adminKey), await pinHash(env, id, pin), now, now).run();
         return json({ classroom: { id, code, label, size }, adminKey }, 201);
       } catch (e) {
         if (!String(e).includes('UNIQUE')) throw e;
@@ -54,15 +69,36 @@ async function route(request, env, p, url) {
     throw new HttpError(500, '교실 코드를 만들지 못했어요. 다시 해 주세요.');
   }
 
-  // 관리 코드로 교실 불러오기
-  if (m === 'POST' && p.length === 2 && p[0] === 'teacher' && p[1] === 'recover') {
+  // 다른 기기에서 들어오기: 교실 코드 + 비밀번호 4자리
+  if (m === 'POST' && p.length === 2 && p[0] === 'teacher' && p[1] === 'login') {
+    await limit('login');
     const body = await readJson(request);
-    const key = normalizeKey(body.adminKey);
-    if (!key) throw new HttpError(400, '관리 코드를 확인해 주세요.');
-    const row = await db.prepare('SELECT id, code, label, size FROM classrooms WHERE admin_hash = ?').bind(await sha256(key)).first();
-    if (!row) throw new HttpError(404, '이 관리 코드로 된 교실이 없어요.');
-    await touch(db, row.id);
-    return json({ classroom: row, adminKey: key });
+    const code = String(body.code || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+    const pin = String(body.pin || '');
+    const room = await db.prepare('SELECT id, code, label, size, pin_hash, pin_fails, pin_locked_until FROM classrooms WHERE code = ?').bind(code).first();
+    const fail = '교실 코드나 비밀번호가 맞지 않아요.';
+    if (!room || !room.pin_hash) {
+      await limit('miss');
+      throw new HttpError(401, fail);
+    }
+    const now = Date.now();
+    if (room.pin_locked_until > now) {
+      throw new HttpError(423, `비밀번호를 여러 번 틀려서 잠겼어요. ${Math.ceil((room.pin_locked_until - now) / MIN)}분 뒤에 다시 해 주세요. 이미 들어가 있는 선생님 기기는 그대로 쓸 수 있어요.`);
+    }
+    if (!/^\d{4}$/.test(pin) || (await pinHash(env, room.id, pin)) !== room.pin_hash) {
+      const fails = room.pin_fails + 1;
+      // 5번 틀릴 때마다 잠금: 15분 → 30분 → 1시간 … 최대 하루
+      const lockMin = fails % 5 === 0 ? Math.min(15 * 2 ** (fails / 5 - 1), 24 * 60) : 0;
+      await db.prepare('UPDATE classrooms SET pin_fails = ?, pin_locked_until = ? WHERE id = ?')
+        .bind(fails, lockMin ? now + lockMin * MIN : 0, room.id).run();
+      throw new HttpError(401, lockMin ? `${fail} 여러 번 틀려서 ${lockMin}분 동안 잠겼어요.` : `${fail} (${5 - (fails % 5)}번 더 틀리면 잠시 잠겨요)`);
+    }
+    const token = randomKey();
+    await db.batch([
+      db.prepare('UPDATE classrooms SET pin_fails = 0, pin_locked_until = 0, last_used = ? WHERE id = ?').bind(now, room.id),
+      db.prepare('INSERT INTO teacher_tokens (token_hash, classroom_id, created_at, last_used) VALUES (?, ?, ?, ?)').bind(await sha256(token), room.id, now, now)
+    ]);
+    return json({ classroom: { id: room.id, code: room.code, label: room.label, size: room.size }, adminKey: token });
   }
 
   // 교사 전용: /classrooms/:id/...
@@ -75,6 +111,20 @@ async function route(request, env, p, url) {
       const size = body.size == null ? room.size : clampInt(body.size, 1, MAX_CLASS_SIZE);
       await db.prepare('UPDATE classrooms SET label = ?, size = ? WHERE id = ?').bind(label, size, room.id).run();
       return json({ classroom: { id: room.id, code: room.code, label, size } });
+    }
+
+    // 비밀번호 바꾸기: 이 기기만 남기고 다른 기기는 모두 나가게 해요
+    if (m === 'PUT' && p.length === 3 && p[2] === 'pin') {
+      const body = await readJson(request);
+      const pin = checkPin(body.pin);
+      const mine = await sha256(room.key);
+      const stmts = [db.prepare('UPDATE classrooms SET pin_hash = ?, pin_fails = 0, pin_locked_until = 0 WHERE id = ?').bind(await pinHash(env, room.id, pin), room.id)];
+      if (body.signOutOthers !== false) {
+        stmts.push(db.prepare('DELETE FROM teacher_tokens WHERE classroom_id = ? AND token_hash != ?').bind(room.id, mine));
+        if (!room.viaAdmin) stmts.push(db.prepare('UPDATE classrooms SET admin_hash = ? WHERE id = ?').bind(await sha256(randomKey()), room.id));
+      }
+      await db.batch(stmts);
+      return json({ ok: true });
     }
 
     if (m === 'DELETE' && p.length === 2) {
@@ -114,11 +164,27 @@ async function route(request, env, p, url) {
       return json({ assignment: { id, strategy: body.strategy, title, deadline, expires_at: deadline + KEEP_AFTER_DEADLINE, created_at: now, submitted: 0 } }, 201);
     }
 
+    // 잘못된 번호로 낸 답을 올바른 번호로 옮기기
+    if (p[2] === 'assignments' && p.length === 6 && p[4] === 'submissions' && m === 'PATCH') {
+      await limit('move');
+      const sub = await db.prepare(
+        'SELECT s.id, s.device_id, s.assignment_id FROM submissions s JOIN assignments a ON a.id = s.assignment_id WHERE s.id = ? AND a.id = ? AND a.classroom_id = ?'
+      ).bind(p[5], p[3], room.id).first();
+      if (!sub) throw new HttpError(404, '제출물을 찾을 수 없어요.');
+      const body = await readJson(request);
+      const number = clampInt(body.number, 1, room.size);
+      const clash = await db.prepare('SELECT id FROM submissions WHERE assignment_id = ? AND number = ? AND device_id = ? AND id != ?')
+        .bind(sub.assignment_id, number, sub.device_id, sub.id).first();
+      if (clash) throw new HttpError(409, `${number}번에 같은 기기에서 낸 답이 이미 있어요.`);
+      await db.prepare('UPDATE submissions SET number = ? WHERE id = ?').bind(number, sub.id).run();
+      return json({ ok: true, number });
+    }
+
     if (p[2] === 'assignments' && p.length === 4) {
       const a = await db.prepare('SELECT * FROM assignments WHERE id = ? AND classroom_id = ?').bind(p[3], room.id).first();
       if (!a) throw new HttpError(404, '과제를 찾을 수 없어요. 보관 기간이 지났을 수 있어요.');
       if (m === 'GET') {
-        const { results } = await db.prepare('SELECT number, device_id, content, revisions, submitted_at FROM submissions WHERE assignment_id = ? ORDER BY number, submitted_at')
+        const { results } = await db.prepare('SELECT id, number, device_id, content, revisions, submitted_at FROM submissions WHERE assignment_id = ? ORDER BY number, submitted_at')
           .bind(a.id).all();
         return json({
           assignment: { ...a, payload: JSON.parse(a.payload) },
@@ -149,8 +215,12 @@ async function route(request, env, p, url) {
   // 학생: /class/:code
   if (p[0] === 'class' && p.length >= 2) {
     const code = String(p[1] || '').toUpperCase();
+    await limit(m === 'POST' ? 'submit' : 'read');
     const room = await db.prepare('SELECT id, code, label, size FROM classrooms WHERE code = ?').bind(code).first();
-    if (!room) throw new HttpError(404, '교실 코드를 다시 확인해 주세요.');
+    if (!room) {
+      await limit('miss');
+      throw new HttpError(404, '교실 코드를 다시 확인해 주세요.');
+    }
 
     if (m === 'GET' && p.length === 2) {
       return json({ classroom: { code: room.code, label: room.label, size: room.size } });
@@ -238,11 +308,35 @@ function clampInt(v, min, max) {
 async function requireTeacher(request, db, id) {
   const auth = request.headers.get('authorization') || '';
   const key = normalizeKey(auth.replace(/^Bearer\s+/i, ''));
-  if (!key) throw new HttpError(401, '교실 관리 코드가 필요해요.');
-  const room = await db.prepare('SELECT id, code, label, size FROM classrooms WHERE id = ? AND admin_hash = ?').bind(id, await sha256(key)).first();
-  if (!room) throw new HttpError(403, '이 교실을 관리할 수 없어요. 관리 코드를 확인해 주세요.');
-  await touch(db, room.id);
-  return room;
+  if (!key) throw new HttpError(401, '선생님 기기로 들어와 있지 않아요. 교실 코드와 비밀번호로 다시 들어와 주세요.');
+  const h = await sha256(key);
+  const room = await db.prepare(
+    `SELECT id, code, label, size, (admin_hash = ?) AS via_admin FROM classrooms
+      WHERE id = ? AND (admin_hash = ? OR EXISTS (SELECT 1 FROM teacher_tokens t WHERE t.token_hash = ? AND t.classroom_id = classrooms.id))`
+  ).bind(h, id, h, h).first();
+  if (!room) throw new HttpError(403, '이 기기는 교실에서 나가 있어요. 교실 코드와 비밀번호로 다시 들어와 주세요.');
+  await db.batch([
+    db.prepare('UPDATE classrooms SET last_used = ? WHERE id = ?').bind(Date.now(), room.id),
+    db.prepare('UPDATE teacher_tokens SET last_used = ? WHERE token_hash = ?').bind(Date.now(), h)
+  ]);
+  return { id: room.id, code: room.code, label: room.label, size: room.size, key, viaAdmin: !!room.via_admin };
+}
+
+// 비밀번호 4자리: 너무 쉬운 번호는 받지 않아요
+const WEAK_PINS = new Set(['1004', '2580', '0852', '1212', '1122', '6969', '1357', '2468', '0101', '0007']);
+function checkPin(v) {
+  const pin = String(v ?? '');
+  if (!/^\d{4}$/.test(pin)) throw new HttpError(400, '비밀번호는 숫자 4자리로 정해 주세요.');
+  const d = [...pin].map(Number);
+  const same = d.every((x) => x === d[0]);
+  const up = d.every((x, i) => i === 0 || x === (d[i - 1] + 1) % 10);
+  const down = d.every((x, i) => i === 0 || x === (d[i - 1] + 9) % 10);
+  if (same || up || down || WEAK_PINS.has(pin)) throw new HttpError(400, '0000, 1234처럼 너무 쉬운 번호는 쓸 수 없어요. 다른 번호로 정해 주세요.');
+  return pin;
+}
+
+async function pinHash(env, classroomId, pin) {
+  return sha256(`${env.PIN_PEPPER || 'saenggakteul-pin'}|${classroomId}|${pin}`);
 }
 
 async function touch(db, id) {
@@ -254,8 +348,26 @@ async function cleanup(db) {
   await db.batch([
     db.prepare('DELETE FROM submissions WHERE expires_at < ?').bind(now),
     db.prepare('DELETE FROM assignments WHERE expires_at < ?').bind(now),
-    db.prepare('DELETE FROM classrooms WHERE last_used < ?').bind(now - CLASSROOM_IDLE_LIMIT)
+    db.prepare('DELETE FROM classrooms WHERE last_used < ?').bind(now - CLASSROOM_IDLE_LIMIT),
+    db.prepare('DELETE FROM rate_limits WHERE reset_at < ?').bind(now)
   ]);
+}
+
+// 접속 주소는 날짜·용도와 섞은 해시로만 다룹니다. (RATE_SALT 비밀값을 설정하면 더 안전해요)
+async function rateLimit(db, request, env, name) {
+  const [max, windowMs] = LIMITS[name];
+  const ip = request.headers.get('cf-connecting-ip') || 'local';
+  const day = new Date().toISOString().slice(0, 10);
+  const bucket = name + ':' + (await sha256(`${env.RATE_SALT || 'saenggakteul'}|${day}|${name}|${ip}`)).slice(0, 32);
+  const now = Date.now();
+  const row = await db.prepare(
+    `INSERT INTO rate_limits (bucket, hits, reset_at) VALUES (?, 1, ?)
+     ON CONFLICT(bucket) DO UPDATE SET
+       hits = CASE WHEN reset_at < ? THEN 1 ELSE hits + 1 END,
+       reset_at = CASE WHEN reset_at < ? THEN ? ELSE reset_at END
+     RETURNING hits`
+  ).bind(bucket, now + windowMs, now, now, now + windowMs).first();
+  if (row && row.hits > max) throw new HttpError(429, '짧은 시간에 요청이 너무 많았어요. 잠시 뒤에 다시 해 주세요.');
 }
 
 function randomBytes(n) {
@@ -272,7 +384,7 @@ function randomCode() {
   return [...randomBytes(6)].map((x) => CODE_ALPHABET[x % CODE_ALPHABET.length]).join('');
 }
 
-// 관리 코드: 20자리(4자리씩 끊어 보여 줌), 약 100비트
+// 기기 열쇠: 20자리 무작위 (약 100비트). 선생님에게는 보이지 않고 기기에만 저장돼요.
 function randomKey() {
   return [...randomBytes(20)].map((x) => CODE_ALPHABET[x % CODE_ALPHABET.length]).join('');
 }

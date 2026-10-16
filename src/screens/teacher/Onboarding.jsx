@@ -1,17 +1,29 @@
 import { useState } from 'preact/hooks';
 import { api } from '../../lib/api.js';
 import { go } from '../../lib/router.js';
-import { groupKey } from '../../lib/format.js';
-import { Brand, Tip, Dialog, ErrorNote, toast } from '../../ui/kit.jsx';
+import { Brand, Tip, ErrorNote, toast } from '../../ui/kit.jsx';
+
+// 숫자 4자리 입력 칸
+export function PinInput({ id, value, onInput, label }) {
+  return (
+    <div class="field">
+      <label for={id}>{label}</label>
+      <input id={id} class="input" type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={value}
+        style="max-width:180px;font-size:24px;letter-spacing:0.5em;font-weight:800"
+        onInput={(e) => onInput(e.currentTarget.value.replace(/\D/g, '').slice(0, 4))} />
+    </div>
+  );
+}
 
 export function Onboarding({ teacher, setTeacher }) {
   const [label, setLabel] = useState('');
   const [size, setSize] = useState(25);
-  const [key, setKey] = useState('');
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
+  const [code, setCode] = useState('');
+  const [loginPin, setLoginPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [created, setCreated] = useState(null);
-  const [saved, setSaved] = useState(false);
   const [firstTime] = useState(!teacher?.classrooms?.length);
 
   const add = async (room, adminKey) => {
@@ -21,24 +33,26 @@ export function Onboarding({ teacher, setTeacher }) {
 
   const create = async (e) => {
     e.preventDefault();
+    if (pin !== pin2) { setError(new Error('두 비밀번호가 서로 달라요. 다시 확인해 주세요.')); return; }
     setBusy(true); setError(null);
     try {
-      const r = await api.createClassroom(label.trim() || '우리 반', Number(size));
+      const r = await api.createClassroom(label.trim() || '우리 반', Number(size), pin);
       await add(r.classroom, r.adminKey);
-      setCreated(r);
+      toast(`${r.classroom.label} 교실을 만들었어요. 교실 코드는 ${r.classroom.code}예요.`);
+      go('/t/class');
     } catch (err) { setError(err); }
     setBusy(false);
   };
 
-  const recover = async (e) => {
+  const login = async (e) => {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      const r = await api.recover(key);
+      const r = await api.login(code, loginPin);
       await add(r.classroom, r.adminKey);
-      toast(`${r.classroom.label} 교실을 불러왔어요.`);
+      toast(`${r.classroom.label} 교실에 들어왔어요.`);
       go('/t');
-    } catch (err) { setError(err); }
+    } catch (err) { setError(err); setLoginPin(''); }
     setBusy(false);
   };
 
@@ -48,8 +62,8 @@ export function Onboarding({ teacher, setTeacher }) {
       <main class="page narrow">
         <div class="stack" style="gap:8px">
           <span class="eyebrow">선생님 시작하기</span>
-          <h1 class="title-lg">{firstTime ? '먼저 교실을 만들어요' : '교실을 하나 더 만들어요'}</h1>
-          <p class="muted">가입은 필요 없어요. 교실을 만들면 학생용 ‘교실 코드’와 선생님용 ‘관리 코드’가 생겨요.</p>
+          <h1 class="title-lg">{firstTime ? '먼저 교실을 만들어요' : '교실을 하나 더 만들거나 불러와요'}</h1>
+          <p class="muted">가입은 필요 없어요. 교실을 만들면 학생용 ‘교실 코드’가 생기고, 선생님은 비밀번호 4자리를 정해요.</p>
         </div>
         <ErrorNote error={error} />
         <div class="split">
@@ -64,52 +78,35 @@ export function Onboarding({ teacher, setTeacher }) {
               <input id="ob-size" class="input" type="number" min="1" max="40" value={size} onInput={(e) => setSize(e.currentTarget.value)} style="max-width:160px" />
               <span class="hint">학생은 1번부터 이 번호까지 중에서 자기 번호를 골라요. 나중에 바꿀 수 있어요.</span>
             </div>
-            <button class="btn big primary" disabled={busy}>{busy ? '만드는 중…' : '교실 만들기'}</button>
-          </form>
-          <form class="card side stack-lg" onSubmit={recover}>
-            <h2 class="title-md">관리 코드로 불러오기</h2>
-            <p class="muted small">다른 기기에서 만든 교실을 이 기기에서도 쓰려면, 그때 받은 관리 코드 20자리를 넣으세요.</p>
-            <div class="field">
-              <label for="ob-key">관리 코드</label>
-              <input id="ob-key" class="input" value={key} onInput={(e) => setKey(e.currentTarget.value)} placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autoComplete="off" style="letter-spacing:0.08em;font-weight:700" />
+            <div class="row" style="gap:16px;align-items:flex-start">
+              <PinInput id="ob-pin" label="선생님 비밀번호 (숫자 4자리)" value={pin} onInput={setPin} />
+              <PinInput id="ob-pin2" label="한 번 더" value={pin2} onInput={setPin2} />
             </div>
-            <button class="btn big" disabled={busy || key.replace(/[^0-9a-z]/gi, '').length !== 20}>불러오기</button>
+            <span class="hint" style="margin-top:-10px">다른 기기(교실 컴퓨터, 집 노트북)에서 이 교실에 들어올 때 써요. 0000, 1234처럼 쉬운 번호는 쓸 수 없어요.</span>
+            <button class="btn big primary" disabled={busy || pin.length !== 4 || pin2.length !== 4}>{busy ? '만드는 중…' : '교실 만들기'}</button>
+          </form>
+          <form class="card side stack-lg" onSubmit={login}>
+            <h2 class="title-md">내 교실에 들어오기</h2>
+            <p class="muted small">다른 기기에서 이미 만든 교실이라면, 교실 코드와 선생님 비밀번호를 넣으세요.</p>
+            <div class="field">
+              <label for="ob-code">교실 코드</label>
+              <input id="ob-code" class="input" value={code} maxLength={6} autoComplete="off" placeholder="6자리"
+                style="max-width:220px;letter-spacing:0.2em;font-weight:800;text-transform:uppercase"
+                onInput={(e) => setCode(e.currentTarget.value.toUpperCase().replace(/[^0-9A-Z]/g, ''))} />
+            </div>
+            <PinInput id="ob-login-pin" label="선생님 비밀번호" value={loginPin} onInput={setLoginPin} />
+            <button class="btn big" disabled={busy || code.length !== 6 || loginPin.length !== 4}>들어오기</button>
           </form>
         </div>
-        <Tip title="교실 코드와 관리 코드는 무엇이 다른가요?">
+        <Tip title="교실 코드와 선생님 비밀번호는 무엇이 다른가요?">
           <ul>
             <li><strong>교실 코드</strong>(6자리): 학생에게 알려 주는 코드예요. 학생은 이 코드와 자기 번호로 들어와요.</li>
-            <li><strong>관리 코드</strong>(20자리): 선생님만 아는 비밀번호 같은 코드예요. 다른 기기에서 교실을 불러오거나, 기기를 바꿀 때 필요해요.</li>
-            <li>관리 코드는 서버에 그대로 저장하지 않아요. 잃어버리면 다시 찾을 수 없으니 꼭 적어 두세요.</li>
+            <li><strong>선생님 비밀번호</strong>(숫자 4자리): 선생님만 알아요. 새 기기에서 처음 들어올 때 한 번만 넣으면, 그 기기는 다음부터 저절로 들어와요.</li>
+            <li>비밀번호를 5번 틀리면 잠시 잠겨요. 학생이 비밀번호를 맞혀 보는 장난을 막기 위해서예요. 이미 들어와 있는 기기는 잠겨도 그대로 쓸 수 있어요.</li>
+            <li>비밀번호를 잊었다면, 이미 들어와 있는 기기의 ‘교실’ 화면에서 바꿀 수 있어요. 들어와 있는 기기가 하나도 없으면 되찾을 수 없어요.</li>
           </ul>
         </Tip>
       </main>
-
-      {created && (
-        <Dialog title="교실이 만들어졌어요">
-          <p>학생에게는 교실 코드를, 선생님은 관리 코드를 꼭 적어 두세요.</p>
-          <div class="card soft-blue" style="border:0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-            <span class="label" style="color:#1F3BD1">학생용 교실 코드</span>
-            <strong style="font-size:28px;letter-spacing:0.16em">{created.classroom.code}</strong>
-          </div>
-          <div class="card soft-butter" style="border:0;display:flex;flex-direction:column;gap:10px">
-            <span class="label" style="color:#6B5300">선생님용 관리 코드 · 다른 사람에게 보여 주지 마세요</span>
-            <strong style="font-size:20px;letter-spacing:0.08em;word-break:break-all">{groupKey(created.adminKey)}</strong>
-            <div class="row">
-              <button type="button" class="btn small" onClick={() => { navigator.clipboard?.writeText(groupKey(created.adminKey)); toast('관리 코드를 복사했어요.'); }}>복사하기</button>
-              <button type="button" class="btn small" onClick={() => {
-                const blob = new Blob([`생각틀 교실: ${created.classroom.label}\n교실 코드: ${created.classroom.code}\n관리 코드: ${groupKey(created.adminKey)}\n`], { type: 'text/plain' });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `생각틀-${created.classroom.label}-관리코드.txt`; a.click();
-              }}>파일로 저장</button>
-            </div>
-          </div>
-          <label class="row" style="gap:10px;cursor:pointer">
-            <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.currentTarget.checked)} style="width:20px;height:20px" />
-            관리 코드를 적어 두었어요
-          </label>
-          <button type="button" class="btn big primary" disabled={!saved} onClick={() => go('/t')}>교실로 가기</button>
-        </Dialog>
-      )}
     </>
   );
 }

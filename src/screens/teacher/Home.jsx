@@ -38,7 +38,7 @@ export function TeacherHome(props) {
             <div class="stack" style="flex:999 1 420px;gap:10px">
               <span class="eyebrow">첫 단계</span>
               <h1 class="title-lg">지금 가르치는 단원을 정해요</h1>
-              <p class="muted">단원 이름과 핵심 개념을 넣어 두면, 활동지를 만들 때 개념 단어가 자동으로 채워져요. 이 정보는 이 기기에만 저장돼요.</p>
+              <p class="muted">단원 이름과 핵심 개념을 넣어 두면, 사고전략을 준비할 때 개념 단어가 자동으로 채워져요. 이 정보는 이 기기에만 저장돼요.</p>
               <div class="row" style="margin-top:6px"><button type="button" class="btn big dark" onClick={() => setEditing(true)}>단원 정하기</button></div>
             </div>
             <HeroArt />
@@ -116,7 +116,7 @@ export function TeacherHome(props) {
                   <span style="padding:16px 12px 12px;display:flex;flex-direction:column;gap:6px">
                     <span style="font-weight:800;font-size:17px;letter-spacing:-0.03em">{s.name}</span>
                     <span class="small muted" style="line-height:1.55">{s.summary}</span>
-                    <span class="small" style="color:var(--blue);font-weight:700;margin-top:4px">활동지 만들기 →</span>
+                    <span class="small" style="color:var(--blue);font-weight:700;margin-top:4px">준비하기 →</span>
                   </span>
                 </a>
               ))}
@@ -126,8 +126,9 @@ export function TeacherHome(props) {
           <aside class="side stack" style="gap:16px">
             <h2 class="title-md">진행 중인 과제</h2>
             <ErrorNote error={error} />
+            {error && /다시 들어와/.test(error.message) && <a class="btn primary" href="#/t/start">교실 코드와 비밀번호로 다시 들어오기</a>}
             {list === null && !error && <p class="muted">불러오는 중…</p>}
-            {list && list.length === 0 && <p class="card muted">아직 낸 과제가 없어요. 왼쪽에서 전략을 골라 활동지를 만들어 보세요.</p>}
+            {list && list.length === 0 && <p class="card muted">아직 낸 과제가 없어요. 왼쪽에서 사고전략을 골라 준비해 보세요.</p>}
             {list && list.map((a) => (
               <a key={a.id} href={`#/t/a/${a.id}`} class="card" style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:18px;padding:20px 22px">
                 <Donut value={a.submitted} total={room.size} label={`${room.size}명 중 ${a.submitted}명 제출`} />

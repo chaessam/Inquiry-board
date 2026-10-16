@@ -4,7 +4,7 @@ import { store } from '../../lib/db.js';
 import { go } from '../../lib/router.js';
 import { fmtDateTime, remaining } from '../../lib/format.js';
 import { byId } from '../../strategies/index.jsx';
-import { Tip, ErrorNote, Loading } from '../../ui/kit.jsx';
+import { Tip, ErrorNote, Loading, Dialog, toast } from '../../ui/kit.jsx';
 import { StudentBar } from './StudentBar.jsx';
 
 export async function clearStudentDevice(setStudent) {
@@ -17,6 +17,7 @@ export function MyTasks({ student, setStudent }) {
   const [list, setList] = useState(null);
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState(null);
+  const [changing, setChanging] = useState(false);
 
   useEffect(() => {
     api.studentAssignments(student.code, student.number)
@@ -76,11 +77,43 @@ export function MyTasks({ student, setStudent }) {
           </ul>
         </Tip>
         <section class="card stack" style="align-items:flex-start">
+          <p style="font-weight:800">번호를 잘못 골랐나요?</p>
+          <p class="small muted">지금은 {student.label} {student.number}번이에요. 번호를 바꾸면 이 기기에서 쓰던 내용은 지워져요. 잘못된 번호로 이미 낸 답은 선생님께 말씀드리면 올바른 번호로 옮겨 주실 수 있어요.</p>
+          <button type="button" class="btn" onClick={() => setChanging(true)}>번호 바꾸기</button>
+        </section>
+        <section class="card stack" style="align-items:flex-start">
           <p style="font-weight:800">여러 명이 함께 쓰는 기기인가요?</p>
           <p class="small muted">다 쓴 뒤 이 기기에서 내 번호와 쓰던 내용을 지워요. 이미 낸 답은 선생님께 그대로 있어요.</p>
           <button type="button" class="btn" onClick={async () => { if (confirm('이 기기에서 내 번호와 쓰던 내용을 지울까요?')) { await clearStudentDevice(setStudent); go('/'); } }}>이 기기에서 지우기</button>
         </section>
       </main>
+      {changing && <ChangeNumber student={student} onClose={() => setChanging(false)} onSave={async (n) => {
+        await store.delPrefix('draft:');
+        await store.delPrefix('sent:');
+        await setStudent({ ...student, number: n });
+        setChanging(false);
+        toast(`${n}번으로 바꿨어요.`);
+      }} />}
     </>
+  );
+}
+
+function ChangeNumber({ student, onClose, onSave }) {
+  const [num, setNum] = useState(null);
+  return (
+    <Dialog title="내 번호 바꾸기" onClose={onClose}>
+      <p class="muted">새 번호를 눌러요. 꼭 내 번호를 골라요.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:8px">
+        {Array.from({ length: student.size }, (_, i) => i + 1).map((n) => (
+          <button key={n} type="button" class="tile" aria-pressed={num === n} disabled={n === student.number}
+            style={`justify-content:center;min-height:56px;font-size:20px;font-weight:800;padding:0;${n === student.number ? 'opacity:.4' : ''}`}
+            onClick={() => setNum(n)}>{n}</button>
+        ))}
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn" onClick={onClose}>취소</button>
+        <button type="button" class="btn primary" disabled={!num} onClick={() => onSave(num)}>{num ? `${num}번으로 바꾸기` : '번호를 골라요'}</button>
+      </div>
+    </Dialog>
   );
 }

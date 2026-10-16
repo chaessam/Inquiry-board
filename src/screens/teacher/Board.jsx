@@ -3,9 +3,11 @@ import { byId } from '../../strategies/index.jsx';
 import { fmtDateTime } from '../../lib/format.js';
 
 // 번호별 제출 격자 + 고른 학생의 결과물 (제출 현황과 보관함이 함께 써요)
-export function Board({ assignment, submissions, size, roster = [], projector }) {
+export function Board({ assignment, submissions, size, roster = [], projector, onMove }) {
   const [sel, setSel] = useState(() => submissions[0]?.number || 1);
   const [which, setWhich] = useState(0);
+  const [moveTo, setMoveTo] = useState(null);
+  const [moving, setMoving] = useState(false);
   const s = byId[assignment.strategy];
 
   const byNum = {};
@@ -75,6 +77,29 @@ export function Board({ assignment, submissions, size, roster = [], projector })
             </div>
           )}
           {cur ? <s.View payload={assignment.payload} content={cur.content} /> : <p class="muted" style="padding:18px;background:var(--ground);border-radius:16px">아직 제출하지 않았어요. 학생 화면에는 ‘해야 할 과제’로 보여요.</p>}
+          {cur && onMove && !projector && (
+            moveTo === null ? (
+              <button type="button" class="btn small" style="align-self:flex-start" onClick={() => setMoveTo('')}>다른 번호로 옮기기</button>
+            ) : (
+              <div class="card pad-sm soft-butter stack" style="border:0;gap:10px">
+                <label for="mv-num" style="font-weight:800">이 답을 몇 번 답으로 옮길까요?</label>
+                <span class="small" style="color:#4D3B00">학생이 번호를 잘못 골라 냈을 때 써요.</span>
+                <div class="row">
+                  <select id="mv-num" class="select" style="width:auto;min-width:140px" value={moveTo} onChange={(e) => setMoveTo(e.currentTarget.value)}>
+                    <option value="">번호 고르기</option>
+                    {Array.from({ length: size }, (_, i) => i + 1).filter((n) => n !== sel).map((n) => <option key={n} value={n}>{n}번{roster[n - 1] ? ` ${roster[n - 1]}` : ''}</option>)}
+                  </select>
+                  <button type="button" class="btn small primary" disabled={!moveTo || moving} onClick={async () => {
+                    setMoving(true);
+                    const ok = await onMove(cur.id, Number(moveTo));
+                    setMoving(false);
+                    if (ok) { setSel(Number(moveTo)); setWhich(0); setMoveTo(null); }
+                  }}>{moving ? '옮기는 중…' : '옮기기'}</button>
+                  <button type="button" class="btn small" onClick={() => setMoveTo(null)}>취소</button>
+                </div>
+              </div>
+            )
+          )}
         </aside>
       </section>
     </div>

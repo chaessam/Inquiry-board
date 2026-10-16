@@ -2,18 +2,30 @@ import { useEffect, useState } from 'preact/hooks';
 import { store } from '../../lib/db.js';
 import { api } from '../../lib/api.js';
 import { go } from '../../lib/router.js';
-import { groupKey } from '../../lib/format.js';
 import { Tip, QR, ErrorNote, toast, joinUrl, Dialog } from '../../ui/kit.jsx';
 import { TeacherBar } from './Bar.jsx';
+import { PinInput } from './Onboarding.jsx';
 
 export function ClassPage(props) {
   const { room, teacher, setTeacher } = props;
   const [roster, setRoster] = useState('');
   const [label, setLabel] = useState(room.label);
   const [size, setSize] = useState(room.size);
-  const [showKey, setShowKey] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
+  const [signOut, setSignOut] = useState(true);
   const [big, setBig] = useState(false);
   const [error, setError] = useState(null);
+
+  const changePin = async (e) => {
+    e.preventDefault(); setError(null);
+    if (pin !== pin2) { setError(new Error('두 비밀번호가 서로 달라요. 다시 확인해 주세요.')); return; }
+    try {
+      await api.changePin(room, pin, signOut);
+      setPin(''); setPin2('');
+      toast(signOut ? '비밀번호를 바꾸고, 다른 기기는 교실에서 나가게 했어요.' : '비밀번호를 바꿨어요.');
+    } catch (err) { setError(err); }
+  };
 
   useEffect(() => {
     setLabel(room.label); setSize(room.size);
@@ -37,7 +49,7 @@ export function ClassPage(props) {
   };
 
   const forget = async () => {
-    if (!confirm('이 기기에서만 교실을 빼요. 관리 코드가 있으면 다시 불러올 수 있어요. 계속할까요?')) return;
+    if (!confirm('이 기기에서만 교실을 빼요. 교실 코드와 선생님 비밀번호로 다시 들어올 수 있어요. 계속할까요?')) return;
     const rest = teacher.classrooms.filter((c) => c.id !== room.id);
     await setTeacher({ classrooms: rest, currentId: rest[0]?.id });
     go(rest.length ? '/t' : '/t/start');
@@ -78,15 +90,19 @@ export function ClassPage(props) {
               </div>
             </div>
           </section>
-          <section class="card side stack">
-            <span class="label">선생님용 관리 코드</span>
-            <p class="small muted">다른 기기에서 이 교실을 불러올 때 써요. 학생에게 보여 주지 마세요.</p>
-            <strong aria-hidden={!showKey} style={`font-size:18px;letter-spacing:0.06em;word-break:break-all;filter:blur(${showKey ? '0' : '6px'})`}>{groupKey(room.adminKey)}</strong>
-            <div class="row">
-              <button type="button" class="btn small" onClick={() => setShowKey(!showKey)}>{showKey ? '가리기' : '보기'}</button>
-              <button type="button" class="btn small" onClick={() => { navigator.clipboard?.writeText(groupKey(room.adminKey)); toast('관리 코드를 복사했어요.'); }}>복사</button>
+          <form class="card side stack" onSubmit={changePin}>
+            <span class="label">선생님 비밀번호 바꾸기</span>
+            <p class="small muted">다른 기기에서 이 교실에 들어올 때 쓰는 숫자 4자리예요. 이 기기는 이미 들어와 있어서 넣지 않아도 돼요.</p>
+            <div class="row" style="gap:12px;align-items:flex-start">
+              <PinInput id="cp-pin" label="새 비밀번호" value={pin} onInput={setPin} />
+              <PinInput id="cp-pin2" label="한 번 더" value={pin2} onInput={setPin2} />
             </div>
-          </section>
+            <label class="row small" style="gap:8px;cursor:pointer;flex-wrap:nowrap;align-items:flex-start">
+              <input type="checkbox" checked={signOut} onChange={(e) => setSignOut(e.currentTarget.checked)} style="width:18px;height:18px;margin-top:2px;flex:none" />
+              다른 기기는 모두 교실에서 나가게 하기 (기기를 잃어버렸거나 비밀번호가 알려졌을 때)
+            </label>
+            <button class="btn" disabled={pin.length !== 4 || pin2.length !== 4}>비밀번호 바꾸기</button>
+          </form>
         </div>
 
         <div class="split">
@@ -115,7 +131,8 @@ export function ClassPage(props) {
         </div>
         <Tip title="학생이 번호를 잘못 골랐어요">
           <ul>
-            <li>학생 화면 아래의 ‘이 기기에서 지우기’를 누르면 처음부터 다시 번호를 고를 수 있어요.</li>
+            <li>학생은 ‘내 과제’ 화면 아래의 ‘번호 바꾸기’로 직접 번호를 바꿀 수 있어요.</li>
+            <li>잘못된 번호로 이미 낸 답은 제출 현황에서 그 답을 열고 ‘다른 번호로 옮기기’를 누르면 돼요.</li>
             <li>같은 번호로 다른 기기에서 제출하면 제출 현황에 표시되고, 두 답이 모두 보관돼요.</li>
           </ul>
         </Tip>

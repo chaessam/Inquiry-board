@@ -20,8 +20,9 @@ async function call(method, path, { body, key } = {}) {
 }
 
 export const api = {
-  createClassroom: (label, size) => call('POST', 'classrooms', { body: { label, size } }),
-  recover: (adminKey) => call('POST', 'teacher/recover', { body: { adminKey } }),
+  createClassroom: (label, size, pin) => call('POST', 'classrooms', { body: { label, size, pin } }),
+  login: (code, pin) => call('POST', 'teacher/login', { body: { code, pin } }),
+  changePin: (room, pin, signOutOthers = true) => call('PUT', `classrooms/${room.id}/pin`, { body: { pin, signOutOthers }, key: room.adminKey }),
   updateClassroom: (room, patch) => call('PATCH', `classrooms/${room.id}`, { body: patch, key: room.adminKey }),
   deleteClassroom: (room) => call('DELETE', `classrooms/${room.id}`, { key: room.adminKey }),
   listAssignments: (room) => call('GET', `classrooms/${room.id}/assignments`, { key: room.adminKey }),
@@ -29,6 +30,7 @@ export const api = {
   getAssignment: (room, id) => call('GET', `classrooms/${room.id}/assignments/${id}`, { key: room.adminKey }),
   extendAssignment: (room, id, deadline) => call('PATCH', `classrooms/${room.id}/assignments/${id}`, { body: { deadline }, key: room.adminKey }),
   deleteAssignment: (room, id) => call('DELETE', `classrooms/${room.id}/assignments/${id}`, { key: room.adminKey }),
+  moveSubmission: (room, id, subId, number) => call('PATCH', `classrooms/${room.id}/assignments/${id}/submissions/${subId}`, { body: { number }, key: room.adminKey }),
   joinInfo: (code) => call('GET', `class/${encodeURIComponent(code)}`),
   studentAssignments: (code, number) => call('GET', `class/${encodeURIComponent(code)}/assignments?number=${number}`),
   submit: (code, id, body) => call('POST', `class/${encodeURIComponent(code)}/assignments/${id}/submit`, { body })
