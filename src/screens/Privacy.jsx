@@ -81,7 +81,7 @@ export function Privacy() {
 
         <section class="stack small muted">
           <p>운영: {fill(OPERATOR.name)}</p>
-          <p>문의: {fill(OPERATOR.contact)}</p>
+          <p>문의: <a href={OPERATOR.blog} target="_blank" rel="noopener noreferrer">{OPERATOR.blog.replace(/^https?:\/\//, '')}</a> (블로그)</p>
           <p>안내 날짜: {OPERATOR.updated}</p>
         </section>
         <div class="row"><button type="button" class="btn" onClick={back}>돌아가기</button></div>
