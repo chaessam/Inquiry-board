@@ -6,10 +6,10 @@ import { NoteAdder } from './BoardShell.jsx';
 import { Quote } from './conceptAttainment.jsx';
 
 // 수직선의 자리 수 (0: 왼쪽 끝, 3: 가운데, 6: 오른쪽 끝)
-const POINTS = 7;
-const MID = 3;
+export const POINTS = 7;
+export const MID = 3;
 
-function pointLabel(p, i) {
+export function pointLabel(p, i) {
   if (i === 0) return `왼쪽 끝 (${p.left})`;
   if (i === POINTS - 1) return `오른쪽 끝 (${p.right})`;
   if (i === MID) return '가운데';
@@ -51,7 +51,7 @@ export const valueLine = {
   stage: 'connect',
   stages: ['connect', 'transfer', 'reflect'],
   summary: '두 관점을 양 끝에 두고, 의견 카드와 내 생각이 그 사이 어디쯤인지 놓아 보며 까닭을 나눠요.',
-  forTeacher: '정답이 하나가 아닌 질문과, 서로 다른 두 관점을 양 끝에 넣어 주세요. 학생은 수직선 위에 내 자리를 정하고 까닭을 써요. 의견 카드를 미리 넣어 두면, 그 의견들이 어디쯤인지 먼저 놓아 보며 생각을 넓혀요. 함께 보기에서는 반 친구들의 의견을 카드로 받아 수직선에 바로 붙일 수 있어요.',
+  forTeacher: '정답이 하나가 아닌 질문과, 서로 다른 두 관점을 양 끝에 넣어 주세요. 학생은 수직선에서 내 자리를 누르기만 하면 낼 수 있고, 까닭은 쓰고 싶을 때 써요. 과제로 내면 모아 보기에서 한 수직선 위에 학생 이름이 각자 고른 자리에 떠요. 의견 카드를 미리 넣어 두면, 그 의견들이 어디쯤인지 먼저 놓아 보며 생각을 넓혀요.',
 
   defaultPayload() {
     return { question: '', left: '', right: '', cards: [] };
@@ -142,18 +142,19 @@ export const valueLine = {
     };
 
     const me = a.me === null || a.me === undefined ? [] : [{ key: 'me', text: '나', pos: a.me, kind: 'me' }];
+    const picked = a.me !== null && a.me !== undefined;
     const meStep = {
       title: '내 생각은 어디쯤인가요?',
-      help: '수직선에서 지금 내 생각과 가장 가까운 동그라미를 누르고, 그 자리에 선 까닭을 써요.',
-      progress: (a.me !== null && a.me !== undefined ? 50 : 0) + (a.reason.trim() ? 50 : 0),
-      canNext: a.me !== null && a.me !== undefined && a.reason.trim().length > 0,
-      blockedHint: a.me === null || a.me === undefined ? '수직선에서 내 자리를 골라 주세요.' : '내 자리에 선 까닭을 써 주세요.',
+      help: '수직선에서 지금 내 생각과 가장 가까운 동그라미를 눌러요. 누르기만 해도 낼 수 있어요.',
+      progress: picked ? (a.reason.trim() ? 100 : 70) : 0,
+      canNext: picked,
+      blockedHint: '수직선에서 내 자리를 골라 주세요.',
       body: (
         <div class="stack-lg">
           {question}
           <Line p={p} items={[...placed.map((x) => ({ ...x, kind: 'fixed card' })), ...me]} selected="me" onPoint={(i) => set({ ...a, me: i })} />
           <div class="field">
-            <label for="vl-reason" style="font-size:17px">내가 이 자리에 선 까닭은 …</label>
+            <label for="vl-reason" style="font-size:17px">내가 이 자리에 선 까닭은 … <span class="small muted" style="font-weight:600">(쓰고 싶으면 써요)</span></label>
             <textarea id="vl-reason" class="textarea kid" rows="3" value={a.reason} placeholder="왜냐하면 …" onInput={(e) => set({ ...a, reason: e.currentTarget.value })} />
           </div>
         </div>

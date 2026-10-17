@@ -1,7 +1,9 @@
+import { useState } from 'preact/hooks';
 import { Tip } from '../ui/kit.jsx';
 import { GENERALIZATION as G } from '../content/guides.js';
 import { ListField, appendWord } from './Shell.jsx';
 import { Quote } from './conceptAttainment.jsx';
+import { bankWords } from '../lib/bank.js';
 
 // 일반화 도움말: 동사 상자는 눌러서 글상자에 바로 넣을 수 있어요.
 function VerbBox({ onPick }) {
@@ -66,11 +68,12 @@ export const generalization = {
   name: '일반화 문장 만들기',
   stage: 'generalize',
   stages: ['generalize', 'transfer', 'assess'],
+  usesBank: true, // 개념 은행을 꺼내 써요
   summary: '개념 두 개를 골라 관계를 문장으로 쓰고, ‘어떻게? 왜?’로 한 단계 다듬어요.',
   forTeacher: '학생이 개념 단어를 골라 첫 일반화(수준 1)를 쓰고, ‘어떻게? 왜?’ 질문에 답하며 수준 2 문장으로 다듬어요. 동사 상자와 점검표가 함께 보여요.',
 
   defaultPayload(unit) {
-    return { concepts: unit?.concepts?.length ? [...unit.concepts] : [], context: '', minConcepts: 2 };
+    return { concepts: unit?.concepts?.length ? [...unit.concepts] : [], context: '', minConcepts: 2, useBank: true };
   },
 
   example() {
@@ -78,20 +81,37 @@ export const generalization = {
       title: '동물과 환경, 한 문장으로',
       concepts: ['동물', '환경', '생김새', '생활 방식', '적응', '먹이'],
       context: '사막여우, 북극곰, 오리처럼 우리가 살펴본 동물들을 떠올려 보세요.',
-      minConcepts: 2
+      minConcepts: 2,
+      useBank: true
     };
   },
 
   validate(p) {
-    return p.concepts.length >= 2 ? '' : '개념 단어를 2개 이상 넣어 주세요.';
+    if (p.concepts.length >= 2 || p.useBank !== false) return '';
+    return '개념 단어를 2개 이상 넣거나, 개념 은행에서 고르게 해 주세요.';
   },
 
-  Editor({ payload: p, set }) {
+  // bank: 우리 반 개념 은행 (준비 화면에서 눌러 넣을 수 있어요)
+  Editor({ payload: p, set, bank = [] }) {
+    const [key, setKey] = useState(0);
+    const fromBank = bankWords(bank, p.concepts);
     return (
       <div class="stack-lg">
-        <ListField id="ge-concepts" label="학생이 고를 개념 단어" list={p.concepts} rows={5}
+        <ListField key={key} id="ge-concepts" label="학생이 고를 개념 단어" list={p.concepts} rows={5}
           hint="단원의 핵심 개념이 처음부터 채워져 있어요. 한 줄에 하나씩, 4~8개가 알맞아요."
           onChange={(v) => set({ ...p, concepts: v })} />
+        {fromBank.length > 0 && (
+          <div class="stack" style="gap:8px">
+            <span class="field-label">개념 은행에서 넣기</span>
+            <div class="row" style="gap:6px">
+              {fromBank.map((w) => <button key={w} type="button" class="chip plain chip-btn" onClick={() => { set({ ...p, concepts: [...p.concepts, w] }); setKey(key + 1); }}>+ {w}</button>)}
+            </div>
+          </div>
+        )}
+        <label class="row" style="gap:10px;flex-wrap:nowrap;align-items:flex-start;cursor:pointer">
+          <input type="checkbox" checked={p.useBank !== false} onChange={(e) => set({ ...p, useBank: e.currentTarget.checked })} style="width:20px;height:20px;margin-top:3px;flex:none" />
+          <span><strong>학생이 우리 반 개념 은행에서도 골라 쓸 수 있어요</strong><br /><span class="small muted">위 단어 아래에 ‘우리 반 개념 은행’ 단어가 함께 보여요. 지금 은행에 {bank.length}개 있어요.{p.concepts.length < 2 && bank.length < 2 ? ' 은행이 비어 있으면 위에 단어를 두 개 이상 넣어 주세요.' : ''}</span></span>
+        </label>
         <div class="field">
           <label for="ge-context">떠올릴 사례 (선택)</label>
           <textarea id="ge-context" class="textarea" rows="2" value={p.context} placeholder="예: 우리가 살펴본 사막여우, 북극곰, 오리를 떠올려 보세요."
@@ -112,6 +132,10 @@ export const generalization = {
       set({ ...a, picked });
     };
     const enough = a.picked.length >= (p.minConcepts || 2);
+    const extra = p.useBank === false ? [] : bankWords(p.bank, p.concepts);
+    const chip = (c, bankWord) => (
+      <button key={c} type="button" class={'chip chip-btn' + (bankWord ? ' plain' : '')} style="font-size:16px;padding:8px 16px" aria-pressed={a.picked.includes(c)} onClick={() => toggle(c)}>{c}</button>
+    );
     const pickedChips = <div class="row" style="gap:6px">{a.picked.map((c) => <span key={c} class="chip">{c}</span>)}</div>;
     return [
       {
@@ -124,10 +148,14 @@ export const generalization = {
           <div class="stack-lg">
             <div class="stack" style="gap:8px">
               <span class="label">개념 단어 고르기 · {a.picked.length}개 골랐어요</span>
-              <div class="row" style="gap:8px">
-                {p.concepts.map((c) => <button key={c} type="button" class="chip chip-btn" style="font-size:16px;padding:8px 16px" aria-pressed={a.picked.includes(c)} onClick={() => toggle(c)}>{c}</button>)}
-              </div>
+              <div class="row" style="gap:8px">{p.concepts.map((c) => chip(c))}</div>
             </div>
+            {extra.length > 0 && (
+              <div class="stack" style="gap:8px">
+                <span class="label">우리 반 개념 은행에서 고르기</span>
+                <div class="row" style="gap:8px">{extra.map((c) => chip(c, true))}</div>
+              </div>
+            )}
             <div class="field">
               <label for="ge-draft" style="font-size:17px">첫 일반화 문장</label>
               <span class="hint">고른 단어가 모두 들어가게 써 보세요. 짧아도 괜찮아요.</span>

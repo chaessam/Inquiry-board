@@ -13,6 +13,7 @@ export const frayer = {
   name: '프레이어 모델',
   stage: 'focus',
   stages: ['focus', 'assess'],
+  usesBank: true, // 개념 은행을 꺼내 써요
   summary: '정의, 특징, 예, 예가 아닌 것을 네 칸에 정리해요.',
   forTeacher: '가운데 개념을 두고 네 칸을 채우며 개념을 또렷하게 해요. 개념 획득 다음 차시에 쓰면, 학생이 찾은 특징을 정의로 다듬을 수 있어요.',
 
@@ -32,12 +33,18 @@ export const frayer = {
     return p.concept.trim() ? '' : '가운데에 둘 개념을 써 주세요.';
   },
 
-  Editor({ payload: p, set }) {
+  Editor({ payload: p, set, bank = [] }) {
     return (
       <div class="stack-lg">
         <div class="field">
           <label for="fr-concept">가운데 개념</label>
           <input id="fr-concept" class="input" value={p.concept} placeholder="예: 곤충" onInput={(e) => set({ ...p, concept: e.currentTarget.value })} />
+          {bank.length > 0 && (
+            <div class="row" style="gap:6px">
+              <span class="small muted">개념 은행에서 고르기</span>
+              {bank.slice(0, 24).map((c) => <button key={c.w} type="button" class="chip plain chip-btn" aria-pressed={p.concept === c.w} onClick={() => set({ ...p, concept: c.w })}>{c.w}</button>)}
+            </div>
+          )}
         </div>
         <p class="hint-line">칸마다 학생에게 줄 도움 질문을 넣을 수 있어요. 비워 두면 기본 질문이 보여요.</p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">

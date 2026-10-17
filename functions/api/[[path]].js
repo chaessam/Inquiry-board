@@ -144,6 +144,18 @@ async function route(request, env, p, url) {
       return json({ ok: true });
     }
 
+    // 개념 은행: 교실마다 하나. 선생님만 고치고, 학생은 '내 과제'를 불러올 때 함께 받아요.
+    if (p[2] === 'concepts' && p.length === 3 && m === 'GET') {
+      const row = await db.prepare('SELECT concepts FROM classrooms WHERE id = ?').bind(room.id).first();
+      return json({ concepts: parseConcepts(row?.concepts) });
+    }
+    if (p[2] === 'concepts' && p.length === 3 && m === 'PUT') {
+      const body = await readJson(request);
+      const concepts = checkConcepts(body.concepts);
+      await db.prepare('UPDATE classrooms SET concepts = ? WHERE id = ?').bind(JSON.stringify(concepts), room.id).run();
+      return json({ concepts });
+    }
+
     if (p[2] === 'assignments' && p.length === 3 && m === 'GET') {
       const { results } = await db.prepare(
         `SELECT a.id, a.strategy, a.title, a.deadline, a.expires_at, a.created_at,
@@ -192,8 +204,10 @@ async function route(request, env, p, url) {
       const a = await db.prepare('SELECT * FROM assignments WHERE id = ? AND classroom_id = ?').bind(p[3], room.id).first();
       if (!a) throw new HttpError(404, '과제를 찾을 수 없어요. 보관 기간이 지났을 수 있어요.');
       if (m === 'GET') {
-        const { results } = await db.prepare('SELECT id, number, device_id, content, revisions, submitted_at FROM submissions WHERE assignment_id = ? ORDER BY number, submitted_at')
-          .bind(a.id).all();
+        // ?since=시각 을 붙이면 그 뒤에 들어온(고친) 답만 보내요. 모아 보기 화면이 '새 것만' 받을 때 써요.
+        const since = Number(url.searchParams.get('since')) || 0;
+        const { results } = await db.prepare('SELECT id, number, device_id, content, revisions, submitted_at FROM submissions WHERE assignment_id = ? AND submitted_at > ? ORDER BY number, submitted_at')
+          .bind(a.id, since).all();
         return json({
           assignment: { ...a, payload: JSON.parse(a.payload) },
           submissions: results.map((s) => ({ ...s, content: JSON.parse(s.content) }))
@@ -224,7 +238,7 @@ async function route(request, env, p, url) {
   if (p[0] === 'class' && p.length >= 2) {
     const code = String(p[1] || '').toUpperCase();
     await limit(m === 'POST' ? 'submit' : 'read');
-    const room = await db.prepare('SELECT id, code, label, size FROM classrooms WHERE code = ?').bind(code).first();
+    const room = await db.prepare('SELECT id, code, label, size, concepts FROM classrooms WHERE code = ?').bind(code).first();
     if (!room) {
       await limit('miss');
       throw new HttpError(404, '교실 코드를 다시 확인해 주세요.');
@@ -246,7 +260,11 @@ async function route(request, env, p, url) {
         ).bind(room.id, number).all();
         mine = new Set(sub.results.map((r) => r.id));
       }
-      return json({ assignments: results.map((a) => ({ ...a, payload: JSON.parse(a.payload), submitted: mine.has(a.id) })) });
+      // 개념 은행도 같은 응답에 실어 보내요 (따로 요청하지 않게)
+      return json({
+        assignments: results.map((a) => ({ ...a, payload: JSON.parse(a.payload), submitted: mine.has(a.id) })),
+        concepts: parseConcepts(room.concepts)
+      });
     }
 
     if (m === 'POST' && p.length === 5 && p[2] === 'assignments' && p[4] === 'submit') {
@@ -328,6 +346,26 @@ async function requireTeacher(request, db, id) {
     db.prepare('UPDATE teacher_tokens SET last_used = ? WHERE token_hash = ?').bind(Date.now(), h)
   ]);
   return { id: room.id, code: room.code, label: room.label, size: room.size, key, viaAdmin: !!room.via_admin };
+}
+
+// 개념 은행: 단어 20자, 뜻 100자, 단원 이름표 30자, 150개까지
+const MAX_CONCEPTS = 150;
+function parseConcepts(text) {
+  try { const v = JSON.parse(text || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+function checkConcepts(list) {
+  if (!Array.isArray(list)) throw new HttpError(400, '개념 목록을 읽을 수 없어요.');
+  if (list.length > MAX_CONCEPTS) throw new HttpError(400, `개념 은행에는 ${MAX_CONCEPTS}개까지 넣을 수 있어요. 쓰지 않는 개념을 빼 주세요.`);
+  const seen = new Set();
+  const out = [];
+  for (const c of list) {
+    const w = cleanText(c?.w, 20);
+    if (!w || seen.has(w)) continue;
+    seen.add(w);
+    const at = Number(c?.at);
+    out.push({ w, m: cleanText(c?.m, 100), u: cleanText(c?.u, 30), at: Number.isFinite(at) && at > 0 ? at : Date.now() });
+  }
+  return out;
 }
 
 // 교실 이름은 로그인 이름이라 다른 교실과 겹치면 안 돼요 (띄어쓰기·대소문자는 무시)

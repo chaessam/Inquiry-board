@@ -15,7 +15,7 @@ const isCorner = (v) => Number.isInteger(v) && v >= 0 && v < 4;
 // 찬성 쪽(0, 1)을 고르면 반대 쪽을, 반대 쪽(2, 3)을 고르면 찬성 쪽을 떠올려요
 const otherSide = (c) => (c < 2 ? '반대' : '찬성');
 
-function Mark({ k, size = 14 }) {
+export function Mark({ k, size = 14 }) {
   return <span aria-hidden="true" style={`flex:none;width:${size}px;height:${size}px;background:${k.solid};${k.mark}`} />;
 }
 
@@ -29,7 +29,7 @@ export const fourCorners = {
   stage: 'connect',
   stages: ['connect', 'generalize', 'transfer'],
   summary: '한 문장을 두고 매우 찬성·찬성·반대·매우 반대 중 내 자리를 골라 서고, 까닭을 나눠요.',
-  forTeacher: '생각이 갈릴 만한 문장 하나를 넣어 주세요. 학생은 네 모퉁이 중 하나를 고르고 까닭을 쓴 뒤, 다른 모퉁이 친구의 생각도 떠올려 봐요. 교실에서는 실제로 네 모퉁이에 서게 하고, 함께 보기에서 모퉁이마다 학생 수와 대표 까닭을 모아 보세요. 일반화 문장을 넣으면 ‘정말 언제나 맞을까?’를 시험해 보는 활동이 돼요.',
+  forTeacher: '생각이 갈릴 만한 문장 하나를 넣어 주세요. 학생은 네 모퉁이 중 하나를 고르기만 해도 낼 수 있고, 까닭과 다른 모퉁이 친구의 생각은 쓰고 싶을 때 써요. 과제로 내면 모아 보기에서 모퉁이마다 학생 이름과 까닭이 모여요. 과제 없이 교실에서 실제로 서게 할 때는 함께 보기에서 모퉁이마다 학생 수를 세어 보세요. 일반화 문장을 넣으면 ‘정말 언제나 맞을까?’를 시험해 보는 활동이 돼요.',
 
   defaultPayload() {
     return { statement: '', think: '' };
@@ -105,9 +105,8 @@ export const fourCorners = {
       },
       {
         title: '왜 그 모퉁이를 골랐나요?',
-        help: '내 생각과 근거를 함께 써요.',
-        canNext: a.reason.trim().length > 0,
-        blockedHint: '까닭을 써 주세요.',
+        help: '내 생각과 근거를 써 보세요. 쓰지 않고 넘어가도 괜찮아요.',
+        canNext: true,
         body: (
           <div class="stack-lg">
             {head}
@@ -123,14 +122,13 @@ export const fourCorners = {
       },
       {
         title: `${chosen ? otherSide(a.corner) : '다른'} 쪽 친구는 뭐라고 할까요?`,
-        help: '나와 다른 모퉁이에 선 친구라면 어떤 까닭을 말할지 떠올려 써요.',
-        canNext: a.other.trim().length > 0,
-        blockedHint: '다른 쪽 친구의 생각을 떠올려 써 주세요.',
+        help: '나와 다른 모퉁이에 선 친구라면 어떤 까닭을 말할지 떠올려 써요. 쓰지 않고 내도 괜찮아요.',
+        canNext: true,
         body: (
           <div class="stack-lg">
             {head}
             {chosenChip}
-            <Quote label="내 까닭" color={chosen?.solid || '#3355FF'}>{a.reason}</Quote>
+            {a.reason.trim() && <Quote label="내 까닭" color={chosen?.solid || '#3355FF'}>{a.reason}</Quote>}
             <div class="field">
               <label for="fc-other" style="font-size:17px">{chosen ? otherSide(a.corner) : '다른'} 쪽 친구는 … 라고 생각할 수 있어요.</label>
               <textarea id="fc-other" class="textarea kid" rows="3" value={a.other} placeholder="~라고 생각할 수도 있어요. 왜냐하면 ~"

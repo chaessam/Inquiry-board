@@ -10,6 +10,7 @@ import { Tip, Dialog, ErrorNote, QR, joinUrl } from '../../ui/kit.jsx';
 import { TeacherBar } from './Bar.jsx';
 import { FileUnder } from './FileUnder.jsx';
 import { loadUnit, filingFor, outsideFiling, fileAssignment } from '../../lib/records.js';
+import { loadBank } from '../../lib/bank.js';
 
 export function NewAssignment(props) {
   const { room, strategyId, query } = props;
@@ -25,6 +26,7 @@ export function NewAssignment(props) {
   const [done, setDone] = useState(null);
   const [filing, setFiling] = useState(null);
   const [fromLive, setFromLive] = useState(null);
+  const [bank, setBank] = useState([]);
   const from = query?.get('live') ? 'live' : query?.get('from') || '';
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export function NewAssignment(props) {
     (async () => {
       const u = await loadUnit(room.id);
       setUnit(u);
+      if (s.usesBank) loadBank(room).then(setBank);
       const stageQ = query?.get('stage');
       // 함께 보기에서 왔으면 준비한 질문·카드를 그대로 가져와요
       const live = query?.get('live') ? await store.get('live:' + query.get('live')) : null;
@@ -63,6 +66,11 @@ export function NewAssignment(props) {
     try {
       const r = await api.createAssignment(room, { strategy: s.id, title: title.trim(), payload, deadline: fromLocalInput(deadline) });
       await fileAssignment(r.assignment.id, { ...filing, roomId: room.id, strategy: s.id, title: title.trim(), liveId: fromLive?.id || null });
+      // 함께 보기에서 낸 과제는 칠판 화면에서 바로 '제출 모아 보기'로 이어져요
+      if (fromLive) {
+        const live = await store.get('live:' + fromLive.id);
+        if (live) await store.set('live:' + fromLive.id, { ...live, assignmentIds: [r.assignment.id, ...(live.assignmentIds || [])] });
+      }
       setDone(r.assignment);
     } catch (err) { setError(err); }
     setBusy(false);
@@ -95,7 +103,7 @@ export function NewAssignment(props) {
         </div>
 
         {preview ? (
-          <PreviewPane strategy={s} payload={payload} title={title} />
+          <PreviewPane strategy={s} payload={{ ...payload, bank }} title={title} />
         ) : (
           <section class="card stack-lg" style="padding:32px">
             <div class="field">
@@ -103,7 +111,7 @@ export function NewAssignment(props) {
               <input id="na-title" class="input" value={title} maxLength={60} placeholder="학생에게 보이는 제목이에요. 예: 곤충일까, 아닐까?" onInput={(e) => setTitle(e.currentTarget.value)} />
               <span class="hint">질문 모양 제목이 학생의 호기심을 끌어요.</span>
             </div>
-            <s.Editor key={editorKey} payload={payload} set={setPayload} unit={unit} />
+            <s.Editor key={editorKey} payload={payload} set={setPayload} unit={unit} bank={bank} />
           </section>
         )}
 
@@ -146,7 +154,7 @@ export function NewAssignment(props) {
           </div>
           <div class="row" style="justify-content:flex-end">
             <button type="button" class="btn" onClick={() => go(viaTools ? '/t/tools' : '/t')}>{viaTools ? '도구 모음으로' : '단원으로'}</button>
-            <button type="button" class="btn primary" onClick={() => go('/t/a/' + done.id)}>제출 현황 보기</button>
+            <button type="button" class="btn primary" onClick={() => go('/t/a/' + done.id)}>제출 모아 보기</button>
           </div>
         </Dialog>
       )}
