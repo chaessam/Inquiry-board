@@ -238,7 +238,12 @@ async function route(request, env, p, url) {
   if (p[0] === 'class' && p.length >= 2) {
     const code = String(p[1] || '').toUpperCase();
     await limit(m === 'POST' ? 'submit' : 'read');
-    const room = await db.prepare('SELECT id, code, label, size, concepts FROM classrooms WHERE code = ?').bind(code).first();
+    // concepts 열은 0005 마이그레이션 뒤에 생겨요. 아직 적용 전이어도 학생 화면은 그대로 열리게 해요.
+    const room = await db.prepare('SELECT id, code, label, size, concepts FROM classrooms WHERE code = ?').bind(code).first()
+      .catch((e) => {
+        if (!String(e).includes('concepts')) throw e;
+        return db.prepare("SELECT id, code, label, size, '[]' AS concepts FROM classrooms WHERE code = ?").bind(code).first();
+      });
     if (!room) {
       await limit('miss');
       throw new HttpError(404, '교실 코드를 다시 확인해 주세요.');
