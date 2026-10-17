@@ -11,6 +11,8 @@ export function TeacherBar({ teacher, setTeacher, room, current }) {
         <nav class="nav" aria-label="주 메뉴">
           {link('#/t', '단원', 'home')}
           {link('#/t/tools', '도구 모음', 'tools')}
+          {link('#/t/tasks', '과제', 'tasks')}
+          {link('#/t/concepts', '개념 은행', 'bank')}
           {link('#/t/class', '교실', 'class')}
           {link('#/t/archive', '보관함', 'archive')}
         </nav>

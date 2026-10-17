@@ -58,7 +58,8 @@ export function Toolbox(props) {
             <li><strong>함께 보기</strong>: 선생님이 대표로 화면을 누르며 시범을 보이거나, 반 친구들의 말을 받아 적어 함께 채워요. 학생 기기는 없어도 돼요.</li>
             <li><strong>과제로 내기</strong>: 학생이 각자 기기로 한 단계씩 채워 선생님께 내요. 지금처럼 제출 현황과 보관함으로 이어져요.</li>
             <li>함께 보기 내용은 이 기기에 저절로 저장돼요. 다음 시간에 ‘이어서 보기’로 다시 열 수 있어요.</li>
-            <li>아래 단계를 누르면 그 단계에 쓰기 좋은 도구를 추천해요. 추천이 아니어도 언제든 골라 쓸 수 있어요.</li>
+            <li><strong>모든 도구 보기</strong>에서는 도구를 한눈에 모두 보여 줘요. 단계를 누르면 그 단계에 쓰기 좋은 도구를 추천해요. 추천이 아니어도 언제든 골라 쓸 수 있어요.</li>
+            <li>과제로 낸 뒤에는 <a href="#/t/tasks" style="font-weight:700">과제</a> 메뉴에서 학생들의 답을 한 화면에 <strong>모아 볼</strong> 수 있어요.</li>
           </ul>
         </Tip>
 
@@ -87,7 +88,7 @@ export function Toolbox(props) {
         <section class="stack" style="gap:14px">
           <h2 class="label">탐구 단계로 고르기</h2>
           <div class="chip-scroll" role="tablist" aria-label="탐구 단계">
-            <button type="button" role="tab" class="chip chip-btn" aria-pressed={stage === ALL} aria-selected={stage === ALL} onClick={() => setStage(ALL)}>단계별로 모두 보기</button>
+            <button type="button" role="tab" class="chip chip-btn" aria-pressed={stage === ALL} aria-selected={stage === ALL} onClick={() => setStage(ALL)}>모든 도구 보기</button>
             {STAGES.map((s, i) => (
               <button key={s.id} type="button" role="tab" class="chip chip-btn" aria-pressed={stage === s.id} aria-selected={stage === s.id} onClick={() => setStage(s.id)}>
                 {i + 1}. {s.name}{unit?.stage === s.id ? ' · 지금 단원' : ''}
@@ -113,17 +114,15 @@ export function Toolbox(props) {
             </section>
           </>
         ) : (
-          STAGES.map((st, i) => (
-            <section key={st.id} class="stack" style="gap:12px">
-              <div class="stack" style="gap:2px">
-                <h2 class="title-md"><span style="color:var(--blue)">{i + 1}</span> {st.name}</h2>
-                <p class="small muted">{st.help}</p>
-              </div>
-              <div class="grid-cards">
-                {recommendedFor(st.id).map((s) => <ToolCard key={s.id} s={s} compact onLive={() => startLive(s, st.id)} href={assignHref(s, st.id)} />)}
-              </div>
-            </section>
-          ))
+          <section class="stack" style="gap:16px">
+            <div class="row between">
+              <h2 class="title-md">모든 도구 {STRATEGIES.length}가지</h2>
+              <span class="small muted">단계를 고르면 그 단계에 맞는 도구를 추천해요</span>
+            </div>
+            <div class="grid-cards">
+              {STRATEGIES.map((s) => <ToolCard key={s.id} s={s} onLive={() => startLive(s, ALL)} href={assignHref(s, ALL)} />)}
+            </div>
+          </section>
         )}
       </main>
     </>

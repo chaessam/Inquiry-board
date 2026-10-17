@@ -15,6 +15,7 @@ export async function clearStudentDevice(setStudent) {
 
 export function MyTasks({ student, setStudent }) {
   const [list, setList] = useState(null);
+  const [bank, setBank] = useState([]);
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState(null);
   const [changing, setChanging] = useState(false);
@@ -23,6 +24,7 @@ export function MyTasks({ student, setStudent }) {
     api.studentAssignments(student.code, student.number)
       .then(async (r) => {
         setList(r.assignments);
+        setBank(r.concepts || []);
         const d = {};
         for (const a of r.assignments) d[a.id] = !!(await store.get('draft:' + a.id));
         setDrafts(d);
@@ -68,6 +70,20 @@ export function MyTasks({ student, setStudent }) {
             {done.length > 0 && <section class="stack"><h2 class="label">낸 과제 {done.length}</h2>{done.map((a) => card(a, 'done'))}</section>}
             {missed.length > 0 && <section class="stack"><h2 class="label">마감된 과제</h2>{missed.map((a) => card(a, 'missed'))}</section>}
           </>
+        )}
+        {bank.length > 0 && (
+          <section class="stack">
+            <h2 class="label">우리 반 개념 은행 {bank.length}</h2>
+            <div class="bank-grid kid">
+              {bank.map((c) => (
+                <div key={c.w} class="bank-card">
+                  <span class="bank-word">{c.w}</span>
+                  {c.m && <span class="bank-meaning">{c.m}</span>}
+                </div>
+              ))}
+            </div>
+            <p class="small muted">수업에서 함께 모은 개념이에요. 일반화 문장을 만들 때 여기 있는 개념을 골라 쓸 수 있어요.</p>
+          </section>
         )}
         <Tip title="쓰던 내용은 어디에 저장되나요?">
           <ul>

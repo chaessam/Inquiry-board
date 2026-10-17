@@ -8,6 +8,8 @@ import { Tip, Loading, toast } from '../../ui/kit.jsx';
 import { TeacherBar } from './Bar.jsx';
 import { Board } from './Board.jsx';
 import { FileUnder } from './FileUnder.jsx';
+import { GatherView } from './Gather.jsx';
+import { addToBank } from './Status.jsx';
 
 // 백업 파일 모양: 받아 둔 과제와 함께 보기 기록을 그대로 담아요
 function backupOf(items, unit) {
@@ -221,6 +223,7 @@ export function ArchiveView(props) {
   const [it, setIt] = useState(undefined);
   const [projector, setProjector] = useState(false);
   const [refile, setRefile] = useState(false);
+  const [tab, setTab] = useState('gather');
   useEffect(() => {
     Promise.all([store.get('archive:' + id), store.get('meta:' + id)]).then(([x, m]) => setIt(x ? { ...x, filed: x.filed || m || null } : null));
   }, [id]);
@@ -264,7 +267,18 @@ export function ArchiveView(props) {
             <span class="hint-line">바꾸면 바로 저장돼요. 보관함에서 이 과제가 고른 단원·단계 아래로 옮겨 가요.</span>
           </section>
         )}
-        <Board assignment={it.assignment} submissions={it.submissions} size={it.classroom.size} roster={it.roster} projector={projector} />
+        <div class="seg no-print" role="tablist" aria-label="보기 바꾸기" style="align-self:flex-start">
+          <button type="button" role="tab" aria-selected={tab === 'gather'} aria-pressed={tab === 'gather'} onClick={() => setTab('gather')}>모아 보기</button>
+          <button type="button" role="tab" aria-selected={tab === 'each'} aria-pressed={tab === 'each'} onClick={() => setTab('each')}>한 명씩 보기</button>
+        </div>
+        {tab === 'gather' ? (
+          <div class={projector ? 'gather-big' : ''}>
+            <GatherView assignment={it.assignment} submissions={it.submissions} size={it.classroom.size} roster={it.roster}
+              onBank={props.room && it.classroom.id === props.room.id ? (w, m) => addToBank(props.room, w, m, f?.unitName || '').catch((e) => toast(e.message)) : undefined} />
+          </div>
+        ) : (
+          <Board assignment={it.assignment} submissions={it.submissions} size={it.classroom.size} roster={it.roster} projector={projector} />
+        )}
       </main>
     </>
   );

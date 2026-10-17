@@ -11,11 +11,12 @@ import { clearStudentDevice } from './MyTasks.jsx';
 
 export function DoTask({ student, setStudent, id }) {
   const [a, setA] = useState(undefined);
+  const [bank, setBank] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     api.studentAssignments(student.code, student.number)
-      .then((r) => setA(r.assignments.find((x) => x.id === id) || null))
+      .then((r) => { setBank(r.concepts || []); setA(r.assignments.find((x) => x.id === id) || null); })
       .catch((e) => { setError(e); setA(null); });
   }, [id]);
 
@@ -26,10 +27,10 @@ export function DoTask({ student, setStudent, id }) {
       <a class="btn" href="#/s">내 과제로</a>
     </main></>
   );
-  return <Worksheet student={student} setStudent={setStudent} a={a} />;
+  return <Worksheet student={student} setStudent={setStudent} a={a} bank={bank} />;
 }
 
-function Worksheet({ student, setStudent, a }) {
+function Worksheet({ student, setStudent, a, bank }) {
   const s = byId[a.strategy];
   const [answer, setAnswer] = useState(null);
   const [step, setStep] = useState(0);
@@ -117,7 +118,7 @@ function Worksheet({ student, setStudent, a }) {
         ) : closed ? (
           <p class="notice warn">마감이 지나서 낼 수 없어요. 선생님께 말씀드려요.</p>
         ) : (
-          <Steps strategy={s} payload={a.payload} answer={answer} set={update} step={step} setStep={go2} onSubmit={submit} submitting={busy}
+          <Steps strategy={s} payload={{ ...a.payload, bank }} answer={answer} set={update} step={step} setStep={go2} onSubmit={submit} submitting={busy}
             submitLabel={sent ? '고친 답 다시 내기' : '선생님께 내기'} />
         )}
       </main>

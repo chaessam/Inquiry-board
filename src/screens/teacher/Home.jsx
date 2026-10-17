@@ -5,7 +5,8 @@ import { api } from '../../lib/api.js';
 import { fmtDateTime, remaining } from '../../lib/format.js';
 import { STAGES } from '../../content/guides.js';
 import { STRATEGIES, byId, recommendedFor, StrategyArt } from '../../strategies/index.jsx';
-import { Tip, Donut, Dialog, ErrorNote } from '../../ui/kit.jsx';
+import { Tip, Donut, Dialog, ErrorNote, toast } from '../../ui/kit.jsx';
+import { addUnitConcepts } from '../../lib/bank.js';
 import { TeacherBar } from './Bar.jsx';
 
 const EMPTY_UNIT = { name: '', subject: '', lens: '', concepts: [], generalization: '', questions: { factual: '', conceptual: '', debatable: '' }, stage: 'connect' };
@@ -26,6 +27,11 @@ export function TeacherHome(props) {
 
   const freshUnit = () => ({ ...EMPTY_UNIT, id: newDeviceId(), startedAt: Date.now() });
   const saveUnit = async (u) => { const next = u.id ? u : { ...u, id: newDeviceId(), startedAt: Date.now() }; await saveUnitRec(room.id, next); setUnit(next); };
+  // 단원 설계를 저장하면 핵심 개념이 개념 은행에도 들어가요
+  const saveDesign = async (u) => {
+    await saveUnit(u);
+    addUnitConcepts(room, u).then((n) => { if (n) toast(`핵심 개념 ${n}개를 개념 은행에도 넣었어요.`); }).catch(() => {});
+  };
   const startNewUnit = () => {
     if (!confirm('지금 단원을 마치고 새 단원을 시작할까요? 지금까지의 기록은 보관함에 이 단원 이름으로 그대로 남아요.')) return;
     setEditing(freshUnit());
@@ -160,11 +166,12 @@ export function TeacherHome(props) {
                 </span>
               </a>
             ))}
+            {list && list.length > 0 && <a class="btn" href="#/t/tasks">과제 모두 보기 · 모아 보기</a>}
             <p class="small muted">제출물은 마감 후 14일 동안만 서버에 있어요. ‘모두 받기’로 받아 두면 이 기기의 보관함에 남아요.</p>
           </aside>
         </section>
       </main>
-      {editing && <UnitDialog unit={editing} isNew={editing !== unit} onClose={() => setEditing(null)} onSave={async (u) => { await saveUnit(u); setEditing(null); }} />}
+      {editing && <UnitDialog unit={editing} isNew={editing !== unit} onClose={() => setEditing(null)} onSave={async (u) => { await saveDesign(u); setEditing(null); }} />}
     </>
   );
 }
@@ -213,7 +220,7 @@ function UnitDialog({ unit, isNew, onClose, onSave }) {
         <div class="field">
           <label for="u-concepts">핵심 개념</label>
           <input id="u-concepts" class="input" value={concepts} placeholder="예: 특징, 분류, 서식지, 적응" onInput={(e) => setConcepts(e.currentTarget.value)} />
-          <span class="hint">쉼표로 나눠 쓰세요. 일반화 문장 만들기에서 학생이 고르는 개념 단어로 쓰여요.</span>
+          <span class="hint">쉼표로 나눠 쓰세요. 일반화 문장 만들기에서 학생이 고르는 개념 단어로 쓰이고, 저장하면 개념 은행에도 들어가요.</span>
         </div>
         <div class="field">
           <label for="u-gen">이 단원의 일반화 (선생님이 목표로 하는 문장)</label>

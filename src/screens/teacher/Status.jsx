@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { store } from '../../lib/db.js';
 import { api } from '../../lib/api.js';
 import { go } from '../../lib/router.js';
@@ -8,9 +8,29 @@ import { Tip, ErrorNote, Loading, Dialog, toast } from '../../ui/kit.jsx';
 import { TeacherBar } from './Bar.jsx';
 import { Board } from './Board.jsx';
 import { stageName } from '../../lib/records.js';
+import { GatherView } from './Gather.jsx';
+import { loadBank, saveBank, mergeWords } from '../../lib/bank.js';
+
+const POLL_MS = 5000;          // 모아 보기 저절로 새로 받기 간격 (3초 이상)
+const POLL_LIMIT = 60 * 60000; // 60분이 지나면 멈춰요
+
+// 새로 받은 답을 합쳐요 (같은 답을 고쳐 냈으면 바꿔 끼워요)
+const mergeSubs = (old, fresh) => {
+  const byId = new Map(old.map((x) => [x.id, x]));
+  for (const x of fresh) byId.set(x.id, x);
+  return [...byId.values()].sort((a, b) => a.number - b.number || a.submitted_at - b.submitted_at);
+};
+
+export async function addToBank(room, word, meaning = '', unit = '') {
+  const fresh = await loadBank(room);
+  const had = fresh.find((c) => c.w === word.trim());
+  const r = mergeWords(fresh, [word], { unit, meaning });
+  if (r.added || (meaning && had && !had.m)) { await saveBank(room, r.list); toast(`‘${word.trim()}’을(를) 개념 은행에 넣었어요.`); }
+  else toast(`‘${word.trim()}’은(는) 이미 개념 은행에 있어요.`);
+}
 
 export function StatusPage(props) {
-  const { room, id } = props;
+  const { room, id, view } = props;
   const [data, setData] = useState(null);
   const [roster, setRoster] = useState([]);
   const [received, setReceived] = useState(null);
@@ -18,6 +38,12 @@ export function StatusPage(props) {
   const [projector, setProjector] = useState(false);
   const [extend, setExtend] = useState(false);
   const [filed, setFiled] = useState(null);
+  const [tab, setTab] = useState(view === 'each' ? 'each' : 'gather');
+  const [auto, setAuto] = useState(true);
+  const [lastPoll, setLastPoll] = useState(null);
+  const pollStart = useRef(Date.now());
+  const dataRef = useRef(null);
+  dataRef.current = data;
 
   const load = () => api.getAssignment(room, id).then((r) => { setData(r); setError(null); }).catch(setError);
   useEffect(() => {
@@ -26,6 +52,28 @@ export function StatusPage(props) {
     store.get('archive:' + id).then((a) => setReceived(a?.receivedAt || null));
     store.get('meta:' + id).then((x) => setFiled(x || null));
   }, [id, room.id]);
+
+  // 모아 보기를 띄워 둔 동안만, 이 화면 하나에서 새로 들어온 답만 받아요
+  const closedNow = !!data && data.assignment.deadline < Date.now();
+  const polling = auto && tab === 'gather' && !!data && !closedNow;
+  useEffect(() => {
+    if (!polling) return;
+    pollStart.current = Date.now();
+    let stop = false;
+    const tick = async () => {
+      if (stop || document.hidden) return;
+      if (Date.now() - pollStart.current > POLL_LIMIT) { setAuto(false); toast('60분이 지나 저절로 새로 받기를 멈췄어요. 새로고침을 눌러 주세요.'); return; }
+      const cur = dataRef.current;
+      const since = Math.max(0, ...cur.submissions.map((x) => x.submitted_at));
+      try {
+        const r = await api.getAssignment(room, id, since);
+        if (!stop && r.submissions.length) setData((d) => ({ ...d, assignment: r.assignment, submissions: mergeSubs(d.submissions, r.submissions) }));
+        setLastPoll(Date.now());
+      } catch { /* 다음 차례에 다시 해요 */ }
+    };
+    const t = setInterval(tick, POLL_MS);
+    return () => { stop = true; clearInterval(t); };
+  }, [polling, id]);
 
   if (error && !data) return <><TeacherBar {...props} /><main class="page"><ErrorNote error={error} /><a href="#/t">홈으로</a></main></>;
   if (!data) return <><TeacherBar {...props} /><main class="page"><Loading /></main></>;
@@ -54,11 +102,11 @@ export function StatusPage(props) {
 
   return (
     <>
-      {!projector && <TeacherBar {...props} />}
+      {!projector && <TeacherBar {...props} current="tasks" />}
       <main class="page" style={projector ? 'max-width:1400px' : ''}>
         <section class="row between" style="align-items:flex-end;gap:16px">
           <div class="stack" style="gap:8px">
-            <nav class="small muted row" style="gap:6px;font-weight:600" aria-label="위치"><a href="#/t" style="text-decoration:none">홈</a><span aria-hidden="true">/</span><span>{s?.name}</span></nav>
+            <nav class="small muted row" style="gap:6px;font-weight:600" aria-label="위치"><a href="#/t/tasks" style="text-decoration:none">과제</a><span aria-hidden="true">/</span><span>{s?.name}</span></nav>
             <h1 class="title-lg" style="font-size:40px">{a.title}</h1>
             {filed && !projector && <span class="small muted">보관함 정리: {filed.unitId ? filed.unitName : '단원 밖 수업'} › {stageName(filed.stage)}</span>}
             <span class="row small muted" style="gap:8px">
@@ -82,6 +130,25 @@ export function StatusPage(props) {
         )}
         <ErrorNote error={error} />
 
+        <div class="row between no-print" style="gap:10px">
+          <div class="seg" role="tablist" aria-label="보기 바꾸기">
+            <button type="button" role="tab" aria-selected={tab === 'gather'} aria-pressed={tab === 'gather'} onClick={() => setTab('gather')}>모아 보기</button>
+            <button type="button" role="tab" aria-selected={tab === 'each'} aria-pressed={tab === 'each'} onClick={() => setTab('each')}>한 명씩 보기</button>
+          </div>
+          {tab === 'gather' && !closed && (
+            <label class="row small" style="gap:8px;cursor:pointer;font-weight:700">
+              <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.currentTarget.checked)} style="width:18px;height:18px" />
+              새로 낸 답 저절로 모으기{polling && lastPoll ? <span class="muted" style="font-weight:500"> · 5초마다</span> : ''}
+            </label>
+          )}
+        </div>
+
+        {tab === 'gather' ? (
+          <div class={projector ? 'gather-big' : ''}>
+            <GatherView assignment={a} submissions={data.submissions} size={room.size} roster={roster}
+              onBank={(w, m) => addToBank(room, w, m, filed?.unitName || '').catch(setError)} />
+          </div>
+        ) : (
         <Board assignment={a} submissions={data.submissions} size={room.size} roster={roster} projector={projector}
           onMove={async (subId, number) => {
             try {
@@ -91,12 +158,16 @@ export function StatusPage(props) {
               return true;
             } catch (e) { setError(e); return false; }
           }} />
+        )}
 
         {!projector && (
           <>
             <Tip title="제출 현황은 이렇게 써요">
               <ul>
-                <li>번호를 누르면 오른쪽에 그 학생의 답이 보여요.</li>
+                <li><strong>모아 보기</strong>는 반 친구들이 낸 답을 한 화면에 모아요. 가치수직선은 한 수직선 위에, 네 모퉁이는 모퉁이마다 학생 이름이 떠요. 칠판에 띄울 때는 ‘크게 보기’를 눌러요.</li>
+                <li>모아 보기를 띄워 두면 새로 낸 답이 5초마다 저절로 모여요. 화면을 숨기거나 60분이 지나면 멈춰요.</li>
+                <li>이름은 이 기기의 명렬표에서만 채워져요. 칠판에 이름을 띄우고 싶지 않으면 ‘번호로’를 눌러요.</li>
+                <li><strong>한 명씩 보기</strong>에서 번호를 누르면 오른쪽에 그 학생의 답이 보여요.</li>
                 <li><strong>크게 보기</strong>는 이름을 숨기고 칠판에 띄우기 좋게 바꿔요. 함께 보며 이야기 나누기에 좋아요.</li>
                 {a.strategy === 'concept-attainment' && <li>주황 점선 카드는 선생님이 정한 칸과 다르게 놓은 카드예요. ‘왜 그렇게 생각했니?’를 물어보기 좋은 대화 거리예요.</li>}
                 <li>학생이 마감 전에 고쳐서 다시 내면 ‘다시 제출’로 바뀌고 마지막 답이 보여요.</li>

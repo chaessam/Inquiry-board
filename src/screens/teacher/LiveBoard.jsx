@@ -6,6 +6,7 @@ import { byId } from '../../strategies/index.jsx';
 import { BoardBody } from '../../strategies/BoardShell.jsx';
 import { Tip, Loading, toast } from '../../ui/kit.jsx';
 import { FileUnder } from './FileUnder.jsx';
+import { loadBank } from '../../lib/bank.js';
 
 const ZOOMS = [['1', '보통'], ['1.25', '크게'], ['1.5', '아주 크게']];
 const readZoom = () => { try { return localStorage.getItem('board-zoom') || '1.25'; } catch { return '1.25'; } };
@@ -20,6 +21,7 @@ export function LiveBoard(props) {
   const [savedAt, setSavedAt] = useState(null);
   const [fs, setFs] = useState(false);
   const [zoom, setZoom] = useState(readZoom);
+  const [bank, setBank] = useState([]);
   const wrap = useRef();
   const timer = useRef();
   const latest = useRef();
@@ -29,6 +31,7 @@ export function LiveBoard(props) {
       setRec(r || null);
       latest.current = r;
       if (r && byId[r.strategy]?.validate(r.payload)) setSetup(true);
+      if (r && byId[r.strategy]?.usesBank) loadBank(room).then(setBank);
     });
   }, [id]);
 
@@ -112,6 +115,7 @@ export function LiveBoard(props) {
         <button type="button" class="btn small" disabled={!!problem} onClick={restart}>처음부터 다시</button>
         <button type="button" class="btn small" disabled={!!problem} onClick={() => print()}>인쇄</button>
         {canFs && <button type="button" class="btn small dark" onClick={toggleFs}>{fs ? '전체화면 끝내기' : '전체화면'}</button>}
+        {rec.assignmentIds?.length > 0 && <a class="btn small" href={`#/t/a/${rec.assignmentIds[0]}`}>학생 제출 모아 보기</a>}
         <button type="button" class="btn small primary" disabled={!!problem} onClick={assign}>이 내용으로 과제 내기</button>
       </div>
 
@@ -129,7 +133,7 @@ export function LiveBoard(props) {
             <label for="lb-title">칠판 제목 (선택)</label>
             <input id="lb-title" class="input" value={rec.title} maxLength={60} placeholder={`비워 두면 ‘${s.name}’으로 보여요. 예: 곤충일까, 아닐까?`} onInput={(e) => update({ title: e.currentTarget.value })} />
           </div>
-          <s.Editor key={editorKey} payload={rec.payload} set={(payload) => update({ payload })} unit={null} />
+          <s.Editor key={editorKey} payload={rec.payload} set={(payload) => update({ payload })} unit={null} bank={bank} />
           <div class="stack" style="gap:8px">
             <span class="field-label">보관함 정리</span>
             <FileUnder roomId={room.id} value={rec.filed} onChange={(filed) => update({ filed })} idPrefix="lb" />
@@ -147,7 +151,7 @@ export function LiveBoard(props) {
       {!problem && (
         <div class="board-stage">
           <h1 class="title-kid board-title">{rec.title || s.name}</h1>
-          <BoardBody key={boardKey} strategy={s} payload={rec.payload} answer={rec.answer} set={(answer) => update({ answer })}
+          <BoardBody key={boardKey} strategy={s} payload={{ ...rec.payload, bank }} answer={rec.answer} set={(answer) => update({ answer })}
             step={rec.step || 0} setStep={(step) => update({ step })} />
         </div>
       )}
@@ -161,6 +165,7 @@ export function LiveBoard(props) {
               <li>쓰는 내용은 이 기기에 저절로 저장돼요. 도구 모음의 ‘이어서 보기’나 보관함에서 다시 열 수 있어요.</li>
               <li><strong>인쇄</strong>에서 ‘PDF로 저장’을 고르면 결과를 파일로 남길 수 있어요.</li>
               <li><strong>이 내용으로 과제 내기</strong>를 누르면 지금 준비한 질문과 카드 그대로 과제 준비 화면이 열려요. 학생은 각자 기기로 채워 내요.</li>
+              <li>과제를 낸 뒤에는 위의 <strong>학생 제출 모아 보기</strong>를 누르면 반 친구들이 낸 답이 한 화면에 모여요. 가치수직선은 한 줄 위에, 네 모퉁이는 모퉁이마다 이름이 떠요.</li>
             </ul>
           </Tip>
         </div>
